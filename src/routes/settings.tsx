@@ -4,14 +4,6 @@ import {
   Bell,
   Mail,
   Calendar,
-  Plus,
-  Trash2,
-  ToggleLeft,
-  ToggleRight,
-  Download,
-  Database,
-  FileText,
-  BarChart3,
   Send,
   CheckCircle,
   Loader2,
@@ -156,52 +148,10 @@ function useReminders() {
 
 function ReminderSection() {
   const { user } = useAuth();
-  const { reminders, isLoading, error, createReminder, updateReminder, deleteReminder } = useReminders();
-  const [newEmail, setNewEmail] = useState('');
-  const [newDay, setNewDay] = useState(1);
-  const [testStatus, setTestStatus] = useState<Record<string, string>>({});
+  const { reminders, isLoading, error, updateReminder } = useReminders();
+  const reminder = reminders[0]; // One config per loan
 
-  const handleAdd = async () => {
-    if (newEmail && newDay >= 1 && newDay <= 28) {
-      await createReminder(newEmail, newDay);
-      setNewEmail('');
-      setNewDay(1);
-    }
-  };
 
-  const handleTestEmail = async (reminderId: string, type: 'payment' | 'insight') => {
-    const key = `${reminderId}-${type}`;
-    setTestStatus((prev) => ({ ...prev, [key]: 'sending' }));
-
-    try {
-      const token = localStorage.getItem('monetalis_token');
-      const loanId = getLoanId();
-      const endpoint = type === 'payment'
-        ? '/api/kpr/send-payment-reminder'
-        : '/api/kpr/send-monthly-insight';
-
-      const res = await fetch(`${CMS_URL}${endpoint}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({ reminderId, loanId }),
-      });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.errors?.[0]?.message || `HTTP ${res.status}`);
-      }
-
-      setTestStatus((prev) => ({ ...prev, [key]: 'sent' }));
-      setTimeout(() => setTestStatus((prev) => ({ ...prev, [key]: '' })), 3000);
-    } catch (err: any) {
-      console.error('Test email failed:', err);
-      setTestStatus((prev) => ({ ...prev, [key]: 'error' }));
-      setTimeout(() => setTestStatus((prev) => ({ ...prev, [key]: '' })), 5000);
-    }
-  };
 
   const handleToggle = async (id: string, field: string, value: boolean) => {
     await updateReminder(id, { [field]: value } as any);
@@ -264,253 +214,72 @@ function ReminderSection() {
             Belum ada reminder. Tambahkan di bawah.
           </p>
         )}
-        {reminders.map((reminder) => {
-          const paymentKey = `${reminder.id}-payment`;
-          const insightKey = `${reminder.id}-insight`;
-          const paymentStatus = testStatus[paymentKey];
-          const insightStatus = testStatus[insightKey];
-
-          return (
-            <div
-              key={reminder.id}
-              className="p-4 bg-gray-50 rounded-lg border border-gray-200"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <button onClick={() => handleToggle(reminder.id, 'isActive', !reminder.isActive)}>
-                    {reminder.isActive ? (
-                      <ToggleRight size={24} className="text-emerald-500" />
-                    ) : (
-                      <ToggleLeft size={24} className="text-gray-400" />
-                    )}
-                  </button>
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{reminder.email}</p>
-                    <p className="text-xs text-gray-500">
-                      Tanggal {reminder.reminderDay} setiap bulan
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => deleteReminder(reminder.id)}
-                  className="text-gray-400 hover:text-red-500 p-1"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </div>
-
-              {/* Email type toggles */}
-              <div className="flex gap-4 pl-9 mb-3">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={reminder.sendPaymentReminder}
-                    onChange={() => handleToggle(reminder.id, 'sendPaymentReminder', !reminder.sendPaymentReminder)}
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-xs text-gray-600">Pengingat Pembayaran</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={reminder.sendMonthlyInsight}
-                    onChange={() => handleToggle(reminder.id, 'sendMonthlyInsight', !reminder.sendMonthlyInsight)}
-                    className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
-                  />
-                  <span className="text-xs text-gray-600">Laporan Bulanan</span>
-                </label>
-              </div>
-
-              {/* Last sent info */}
-              <div className="flex gap-4 pl-9">
-                {reminder.lastPaymentReminderSent && (
-                  <p className="text-[10px] text-gray-400">
-                    Pengingat terakhir: {reminder.lastPaymentReminderSent}
-                  </p>
-                )}
-                {reminder.lastMonthlyInsightSent && (
-                  <p className="text-[10px] text-gray-400">
-                    Laporan terakhir: {reminder.lastMonthlyInsightSent}
-                  </p>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Add new reminder */}
-      <div className="border-t pt-4">
-        <h4 className="text-sm font-medium text-gray-700 mb-3">Tambah Reminder Baru</h4>
-        <div className="flex gap-3">
-          <div className="flex-1">
-            <label className="text-xs text-gray-500 mb-1 block">Email</label>
-            <div className="relative">
-              <Mail size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input
-                type="email"
-                value={newEmail}
-                onChange={(e) => setNewEmail(e.target.value)}
-                placeholder={user?.email || 'email@example.com'}
-                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
-              />
-            </div>
+        {isLoading ? (
+          <div className="flex items-center gap-2 py-4">
+            <Loader2 size={16} className="animate-spin text-gray-400" />
+            <p className="text-sm text-gray-400">Memuat konfigurasi...</p>
           </div>
-          <div className="w-32">
-            <label className="text-xs text-gray-500 mb-1 block">Tanggal</label>
-            <div className="relative">
-              <Calendar size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        ) : !reminder ? (
+          <p className="text-sm text-gray-400 text-center py-4">
+            Belum ada konfigurasi reminder.
+          </p>
+        ) : (
+          <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+            {/* Reminder day config */}
+            <div className="flex items-center gap-4 mb-4">
+              <div className="flex items-center gap-2">
+                <Calendar size={16} className="text-gray-500" />
+                <span className="text-sm text-gray-700">Kirim tanggal:</span>
+              </div>
               <input
                 type="number"
                 min={1}
                 max={28}
-                value={newDay}
-                onChange={(e) => setNewDay(Number(e.target.value))}
-                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                value={reminder.reminderDay}
+                onChange={(e) => updateReminder(reminder.id, { reminderDay: Number(e.target.value) } as any)}
+                className="w-16 px-2 py-1 text-sm text-center border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
               />
+              <span className="text-sm text-gray-500">setiap bulan</span>
+            </div>
+
+            {/* Email type toggles */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={reminder.sendPaymentReminder}
+                  onChange={() => handleToggle(reminder.id, 'sendPaymentReminder', !reminder.sendPaymentReminder)}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-700">Pengingat Pembayaran</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={reminder.sendMonthlyInsight}
+                  onChange={() => handleToggle(reminder.id, 'sendMonthlyInsight', !reminder.sendMonthlyInsight)}
+                  className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                <span className="text-sm text-gray-700">Laporan Bulanan</span>
+              </label>
+            </div>
+
+            {/* Last sent info */}
+            <div className="flex flex-col sm:flex-row gap-4 mt-3 pt-3 border-t border-gray-200">
+              {reminder.lastPaymentReminderSent && (
+                <p className="text-xs text-gray-400">
+                  Pengingat terakhir: {new Date(reminder.lastPaymentReminderSent).toLocaleDateString('id-ID')}
+                </p>
+              )}
+              {reminder.lastMonthlyInsightSent && (
+                <p className="text-xs text-gray-400">
+                  Laporan terakhir: {new Date(reminder.lastMonthlyInsightSent).toLocaleDateString('id-ID')}
+                </p>
+              )}
             </div>
           </div>
-          <div className="flex items-end">
-            <button
-              onClick={handleAdd}
-              disabled={!newEmail && !user?.email}
-              className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary-light disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              <Plus size={14} />
-              Tambah
-            </button>
-          </div>
-        </div>
+        )}
       </div>
-    </div>
-  );
-}
-
-function UsersSection() {
-  const [users, setUsers] = useState<Array<{ id: string; email: string; name: string; role: string; isActive: boolean }>>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [testStatus, setTestStatus] = useState<Record<string, string>>({});
-  const loanId = getLoanId();
-
-  const handleTestUserEmail = async (email: string, type: 'payment' | 'insight') => {
-    const key = `user-${email}-${type}`;
-    setTestStatus((prev) => ({ ...prev, [key]: 'sending' }));
-    try {
-      const token = localStorage.getItem('monetalis_token');
-      const endpoint = type === 'payment' ? '/api/kpr/send-payment-reminder-test' : '/api/kpr/send-monthly-insight-test';
-      const res = await fetch(`${CMS_URL}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ email, loanId }),
-      });
-      if (!res.ok) throw new Error('Failed');
-      setTestStatus((prev) => ({ ...prev, [key]: 'sent' }));
-      setTimeout(() => setTestStatus((prev) => ({ ...prev, [key]: '' })), 3000);
-    } catch {
-      setTestStatus((prev) => ({ ...prev, [key]: 'error' }));
-      setTimeout(() => setTestStatus((prev) => ({ ...prev, [key]: '' })), 5000);
-    }
-  };
-
-  useEffect(() => {
-    const fetchUsers = async () => {
-      const token = localStorage.getItem('monetalis_token');
-      if (!token || !loanId) return;
-      try {
-        const res = await fetch(`${CMS_URL}/api/monetalis-users?where[loan][equals]=${loanId}&limit=50`, {
-          headers: { 'Authorization': `Bearer ${token}` },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setUsers(data.docs.map((u: any) => ({
-            id: u.id,
-            email: u.email,
-            name: u.name,
-            role: u.role,
-            isActive: u.isActive,
-          })));
-        }
-      } catch (err) {
-        console.error('Failed to fetch users:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchUsers();
-  }, [loanId]);
-
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6">
-      <div className="flex items-center gap-2 mb-4">
-        <User size={18} className="text-primary" />
-        <h3 className="text-base font-semibold text-gray-900">Users dengan Akses</h3>
-      </div>
-      <p className="text-sm text-gray-500 mb-4">
-        Semua user yang memiliki akses ke data KPR ini.
-      </p>
-
-      {isLoading ? (
-        <div className="flex items-center gap-2 py-4">
-          <Loader2 size={16} className="animate-spin text-gray-400" />
-          <p className="text-sm text-gray-400">Memuat users...</p>
-        </div>
-      ) : users.length === 0 ? (
-        <p className="text-sm text-gray-400 text-center py-4">Tidak ada user ditemukan.</p>
-      ) : (
-        <div className="space-y-2">
-          {users.map((u) => {
-            const paymentKey = `user-${u.email}-payment`;
-            const insightKey = `user-${u.email}-insight`;
-            const paymentSt = testStatus[paymentKey];
-            const insightSt = testStatus[insightKey];
-
-            return (
-              <div key={u.id} className="p-3 bg-gray-50 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${u.isActive ? 'bg-emerald-500' : 'bg-gray-400'}`}>
-                      {u.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-900">{u.name}</p>
-                      <p className="text-xs text-gray-500">{u.email}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${u.role === 'admin' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
-                      {u.role}
-                    </span>
-                    {!u.isActive && (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-600">
-                        Nonaktif
-                      </span>
-                    )}
-                  </div>
-                </div>
-                {/* Test email buttons per user */}
-                <div className="flex gap-2 mt-2 pl-11">
-                  <button
-                    onClick={() => handleTestUserEmail(u.email, 'payment')}
-                    disabled={paymentSt === 'sending'}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100"
-                  >
-                    {paymentSt === 'sending' ? <Loader2 size={12} className="animate-spin" /> : paymentSt === 'sent' ? <CheckCircle size={12} /> : paymentSt === 'error' ? <AlertCircle size={12} /> : <Send size={12} />}
-                    {paymentSt === 'sending' ? 'Mengirim...' : paymentSt === 'sent' ? 'Terkirim!' : paymentSt === 'error' ? 'Gagal' : 'Kirim Pengingat'}
-                  </button>
-                  <button
-                    onClick={() => handleTestUserEmail(u.email, 'insight')}
-                    disabled={insightSt === 'sending'}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
-                  >
-                    {insightSt === 'sending' ? <Loader2 size={12} className="animate-spin" /> : insightSt === 'sent' ? <CheckCircle size={12} /> : insightSt === 'error' ? <AlertCircle size={12} /> : <Send size={12} />}
-                    {insightSt === 'sending' ? 'Mengirim...' : insightSt === 'sent' ? 'Terkirim!' : insightSt === 'error' ? 'Gagal' : 'Kirim Laporan'}
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }
