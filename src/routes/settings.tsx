@@ -10,6 +10,9 @@ import {
   AlertCircle,
   User,
   Database,
+  FileText,
+  BarChart3,
+  Download,
 } from 'lucide-react';
 import { formatIDR } from '@/lib/format';
 import { useAuth } from '@/lib/auth';
@@ -286,12 +289,12 @@ function ReminderSection() {
 }
 
 function UsersSection() {
-  const [users, setUsers] = useState([]);
+  const [users, setUsers] = useState<Array<{id: string; email: string; name: string; role: string; isActive: boolean}>>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [testStatus, setTestStatus] = useState({});
+  const [testStatus, setTestStatus] = useState<Record<string, string>>({});
   const loanId = getLoanId();
 
-  const handleTestUserEmail = async (email, type) => {
+  const handleTestUserEmail = async (email: string, type: string) => {
     const key = `${email}-${type}`;
     setTestStatus((prev) => ({ ...prev, [key]: 'sending' }));
     try {
@@ -321,7 +324,7 @@ function UsersSection() {
         });
         if (res.ok) {
           const data = await res.json();
-          setUsers(data.docs.map((u) => ({ id: u.id, email: u.email, name: u.name, role: u.role, isActive: u.isActive })));
+          setUsers(data.docs.map((u: any) => ({ id: u.id, email: u.email, name: u.name, role: u.role, isActive: u.isActive })));
         }
       } catch (err) { console.error('Failed to fetch users:', err); }
       finally { setIsLoading(false); }
@@ -346,7 +349,7 @@ function UsersSection() {
         <p className="text-sm text-gray-400 text-center py-4">Tidak ada user ditemukan.</p>
       ) : (
         <div className="space-y-2">
-          {users.map((u) => {
+          {users.map((u: {id: string; email: string; name: string; role: string; isActive: boolean}) => {
             const paymentSt = testStatus[`${u.email}-payment`];
             const insightSt = testStatus[`${u.email}-insight`];
             return (
