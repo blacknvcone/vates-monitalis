@@ -1,15 +1,680 @@
+import { useState, useMemo } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  flexRender,
+  type ColumnDef,
+  type SortingState,
+  type VisibilityState,
+} from '@tanstack/react-table';
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from 'recharts';
+import {
+  CheckCircle2,
+  Circle,
+  ChevronDown,
+  ChevronUp,
+  ChevronsUpDown,
+  Columns3,
+  Search,
+  CheckSquare,
+  CalendarDays,
+} from 'lucide-react';
+import { formatIDR, formatPct, formatMonthLabel, formatIDRCompact } from '@/lib/format';
+import { cn } from '@/lib/utils';
+import type { KprScheduleEntry } from '@/types';
+
+// ============================================================
+// Mock data generator — full 240-month amortization schedule
+// ============================================================
+
+interface Phase {
+  startMonth: number;
+  endMonth: number;
+  annualRate: number;
+  installment: number;
+}
+
+const LOAN_AMOUNT = 415_000_000;
+const FIRST_PAYMENT = '2023-11-01';
+const CURRENT_MONTH = 33;
+
+const PHASES: Phase[] = [
+  { startMonth: 1, endMonth: 36, annualRate: 4.75, installment: 2_681_900 },
+  { startMonth: 37, endMonth: 72, annualRate: 8.00, installment: 3_367_400 },
+  { startMonth: 73, endMonth: 240, annualRate: 10.25, installment: 3_815_600 },
+];
+
+function getPhaseForMonth(month: number): Phase {
+  return PHASES.find((p) => month >= p.startMonth && month <= p.endMonth) ?? PHASES[PHASES.length - 1];
+}
+
+function generateSchedule(): KprScheduleEntry[] {
+  const entries: KprScheduleEntry[] = [];
+  let balance = LOAN_AMOUNT;
+  const firstDate = new Date(FIRST_PAYMENT);
+
+  for (let month = 1; month <= 240; month++) {
+    const phase = getPhaseForMonth(month);
+    const monthlyRate = phase.annualRate / 100 / 12;
+    const installment = phase.installment;
+
+    const interestPortion = Math.round(balance * monthlyRate);
+    let principalPortion = installment - interestPortion;
+
+    // Last month: pay off remaining balance
+    if (month === 240) {
+      principalPortion = balance;
+    }
+
+    balance = Math.max(0, balance - principalPortion);
+
+    // Calendar date for this month
+    const calDate = new Date(firstDate);
+    calDate.setMonth(calDate.getMonth() + (month - 1));
+    const calendarDate = calDate.toISOString().split('T')[0];
+
+    entries.push({
+      id: `schedule-${month}`,
+      loan: 'mock-loan-1',
+      monthNumber: month,
+      calendarDate,
+      principalPortion,
+      interestPortion,
+      totalInstallment: month === 240 ? principalPortion + interestPortion : installment,
+      outstandingBalance: balance,
+      interestRate: phase.annualRate,
+      isPaid: month <= CURRENT_MONTH,
+      paidDate: month <= CURRENT_MONTH ? calendarDate : undefined,
+      paidAmount: month <= CURRENT_MONTH ? installment : undefined,
+      createdAt: '2023-10-23',
+      updatedAt: '2023-10-23',
+    });
+  }
+
+  return entries;
+}
+
+// ============================================================
+// Helpers
+// ============================================================
+
+function getPhaseBoundaryMonths(): Set<number> {
+  const boundaries = new Set<number>();
+  for (const phase of PHASES) {
+    boundaries.add(phase.startMonth);
+  }
+  return boundaries;
+}
+
+const PHASE_BOUNDARIES = getPhaseBoundaryMonths();
+
+function isPhaseBoundary(month: number): boolean {
+  return PHASE_BOUNDARIES.has(month);
+}
+
+// ============================================================
+// Column Sort Icon
+// ============================================================
+
+function SortIcon({ sorted }: { sorted: false | 'asc' | 'desc' }) {
+  if (sorted === 'asc') return <ChevronUp size={14} className="text-blue-600" />;
+  if (sorted === 'desc') return <ChevronDown size={14} className="text-blue-600" />;
+  return <ChevronsUpDown size={14} className="text-gray-300" />;
+}
+
+// ============================================================
+// Column definitions
+// ============================================================
+
+const columns: ColumnDef<KprScheduleEntry>[] = [
+  {
+    accessorKey: 'monthNumber',
+    header: 'Bulan',
+    cell: (info) => {
+      const month = info.getValue() as number;
+      return (
+        <span className="font-medium text-gray-900 tabular-nums">
+          {month}
+        </span>
+      );
+    },
+    size: 60,
+  },
+  {
+    accessorKey: 'calendarDate',
+    header: 'Tanggal',
+    cell: (info) => {
+      const month = info.row.original.monthNumber;
+      return (
+        <span className="text-gray-600 text-sm">
+          {formatMonthLabel(month, FIRST_PAYMENT)}
+        </span>
+      );
+    },
+    size: 100,
+  },
+  {
+    accessorKey: 'principalPortion',
+    header: 'Angsuran Pokok',
+    cell: (info) => (
+      <span className="tabular-nums text-emerald-700 font-medium text-sm">
+        {formatIDR(info.getValue() as number)}
+      </span>
+    ),
+    size: 140,
+  },
+  {
+    accessorKey: 'interestPortion',
+    header: 'Angsuran Bunga',
+    cell: (info) => (
+      <span className="tabular-nums text-red-600 font-medium text-sm">
+        {formatIDR(info.getValue() as number)}
+      </span>
+    ),
+    size: 140,
+  },
+  {
+    accessorKey: 'totalInstallment',
+    header: 'Total Angsuran',
+    cell: (info) => (
+      <span className="tabular-nums text-gray-900 font-semibold text-sm">
+        {formatIDR(info.getValue() as number)}
+      </span>
+    ),
+    size: 140,
+  },
+  {
+    accessorKey: 'outstandingBalance',
+    header: 'Saldo Pinjaman',
+    cell: (info) => (
+      <span className="tabular-nums text-gray-700 text-sm">
+        {formatIDR(info.getValue() as number)}
+      </span>
+    ),
+    size: 150,
+  },
+  {
+    accessorKey: 'interestRate',
+    header: 'Suku Bunga',
+    cell: (info) => {
+      const rate = info.getValue() as number;
+      const phase = PHASES.find((p) => p.annualRate === rate);
+      const phaseNum = phase
+        ? PHASES.indexOf(phase) + 1
+        : '?';
+      return (
+        <span className="tabular-nums text-sm">
+          <span className="font-medium text-gray-900">{formatPct(rate)}</span>
+          <span className="text-gray-400 ml-1 text-xs">F{phaseNum}</span>
+        </span>
+      );
+    },
+    size: 100,
+  },
+  {
+    accessorKey: 'isPaid',
+    header: 'Status',
+    cell: (info) => {
+      const paid = info.getValue() as boolean;
+      return paid ? (
+        <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+          <CheckCircle2 size={12} />
+          Lunas
+        </span>
+      ) : (
+        <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+          <Circle size={12} />
+          Belum
+        </span>
+      );
+    },
+    size: 90,
+  },
+];
+
+// ============================================================
+// Stacked Area Chart Component
+// ============================================================
+
+function PrincipalVsInterestChart({ data }: { data: KprScheduleEntry[] }) {
+  // Sample every 6 months for chart readability, plus include month 1 and phase boundaries
+  const chartData = useMemo(() => {
+    const sampled: { month: number; label: string; principal: number; interest: number }[] = [];
+    for (let i = 0; i < data.length; i++) {
+      const entry = data[i];
+      if (
+        entry.monthNumber === 1 ||
+        entry.monthNumber % 12 === 0 ||
+        entry.monthNumber === 240 ||
+        isPhaseBoundary(entry.monthNumber) ||
+        entry.monthNumber === CURRENT_MONTH
+      ) {
+        sampled.push({
+          month: entry.monthNumber,
+          label: formatMonthLabel(entry.monthNumber, FIRST_PAYMENT),
+          principal: entry.principalPortion,
+          interest: entry.interestPortion,
+        });
+      }
+    }
+    return sampled;
+  }, [data]);
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <h3 className="text-sm font-semibold text-gray-700 mb-1">
+        Komposisi Angsuran: Pokok vs Bunga
+      </h3>
+      <p className="text-xs text-gray-400 mb-4">
+        Stacked area chart menunjukkan porsi pokok dan bunga per bulan selama 20 tahun
+      </p>
+      <ResponsiveContainer width="100%" height={320}>
+        <AreaChart data={chartData}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+          <XAxis
+            dataKey="month"
+            tick={{ fontSize: 10 }}
+            tickFormatter={(v) => `B${v}`}
+            interval="preserveStartEnd"
+          />
+          <YAxis
+            tick={{ fontSize: 10 }}
+            tickFormatter={(v) => formatIDRCompact(v)}
+          />
+          <Tooltip
+            formatter={(value: number, name: string) => [
+              formatIDR(value),
+              name === 'principal' ? 'Pokok' : 'Bunga',
+            ]}
+            labelFormatter={(label) => {
+              const entry = chartData.find((d) => d.month === label);
+              return entry ? `Bulan ${label} — ${entry.label}` : `Bulan ${label}`;
+            }}
+            contentStyle={{
+              borderRadius: 8,
+              border: '1px solid #e5e7eb',
+              fontSize: 12,
+            }}
+          />
+          <Legend
+            formatter={(value) => (value === 'principal' ? 'Angsuran Pokok' : 'Angsuran Bunga')}
+            wrapperStyle={{ fontSize: 12 }}
+          />
+          <Area
+            type="monotone"
+            dataKey="principal"
+            stackId="1"
+            stroke="#22c55e"
+            fill="#22c55e"
+            fillOpacity={0.6}
+            strokeWidth={1.5}
+          />
+          <Area
+            type="monotone"
+            dataKey="interest"
+            stackId="1"
+            stroke="#ef4444"
+            fill="#ef4444"
+            fillOpacity={0.4}
+            strokeWidth={1.5}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+// ============================================================
+// Column Visibility Dropdown
+// ============================================================
+
+function ColumnVisibilityDropdown({
+  table,
+}: {
+  table: ReturnType<typeof useReactTable<KprScheduleEntry>>;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+      >
+        <Columns3 size={15} />
+        Kolom
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 mt-1 z-20 w-56 bg-white border border-gray-200 rounded-lg shadow-lg py-1">
+            <div className="px-3 py-2 border-b border-gray-100">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                Tampilkan Kolom
+              </p>
+            </div>
+            {table.getAllLeafColumns()
+              .filter((col) => col.id !== 'monthNumber' && col.id !== 'isPaid') // always show these
+              .map((column) => (
+                <label
+                  key={column.id}
+                  className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer text-sm"
+                >
+                  <input
+                    type="checkbox"
+                    checked={column.getIsVisible()}
+                    onChange={column.getToggleVisibilityHandler()}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-gray-700">
+                    {typeof column.columnDef.header === 'string'
+                      ? column.columnDef.header
+                      : column.id}
+                  </span>
+                </label>
+              ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// Page Component
+// ============================================================
 
 function SchedulePage() {
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [globalFilter, setGlobalFilter] = useState('');
+  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
+
+  const scheduleData = useMemo(() => generateSchedule(), []);
+
+  const table = useReactTable({
+    data: scheduleData,
+    columns,
+    state: {
+      sorting,
+      globalFilter,
+      columnVisibility,
+    },
+    onSortingChange: setSorting,
+    onGlobalFilterChange: setGlobalFilter,
+    onColumnVisibilityChange: setColumnVisibility,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    initialState: {
+      pagination: {
+        pageSize: 30,
+      },
+    },
+    globalFilterFn: (row, _columnId, filterValue) => {
+      // Filter by month number
+      const month = row.original.monthNumber;
+      const search = filterValue.toString();
+      return month.toString().includes(search);
+    },
+  });
+
+  const paidCount = scheduleData.filter((e) => e.isPaid).length;
+  const unpaidCount = 240 - paidCount;
+
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Tabel Angsuran</h1>
-        <p className="text-sm text-gray-500 mt-1">Jadwal lengkap 240 bulan angsuran KPR</p>
+        <p className="text-sm text-gray-500 mt-1">
+          Jadwal lengkap 240 bulan angsuran KPR BRI &middot; Fachrul Dani Prasetya
+        </p>
       </div>
-      <div className="bg-white rounded-xl border border-gray-200 p-8 text-center text-gray-400">
-        <p>Tabel angsuran akan dimuat dari CMS...</p>
+
+      {/* Summary Stats */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="bg-white rounded-xl border border-gray-200 px-4 py-3">
+          <p className="text-xs text-gray-500">Total Bulan</p>
+          <p className="text-xl font-bold text-gray-900">240</p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 px-4 py-3">
+          <p className="text-xs text-gray-500">Sudah Dibayar</p>
+          <p className="text-xl font-bold text-emerald-600">{paidCount}</p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 px-4 py-3">
+          <p className="text-xs text-gray-500">Belum Dibayar</p>
+          <p className="text-xl font-bold text-amber-600">{unpaidCount}</p>
+        </div>
+        <div className="bg-white rounded-xl border border-gray-200 px-4 py-3">
+          <p className="text-xs text-gray-500">Bulan Aktif</p>
+          <p className="text-xl font-bold text-blue-600">{CURRENT_MONTH}</p>
+        </div>
       </div>
+
+      {/* Controls Row */}
+      <div className="flex flex-wrap items-center gap-3">
+        {/* Search / Filter */}
+        <div className="relative flex-1 min-w-[200px] max-w-xs">
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Cari nomor bulan..."
+            value={globalFilter}
+            onChange={(e) => setGlobalFilter(e.target.value)}
+            className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-colors"
+          />
+        </div>
+
+        {/* Bulk Mark Paid */}
+        <button
+          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+          onClick={() => {
+            alert(`Bulk mark paid up to month ${CURRENT_MONTH} — akan terhubung ke CMS nanti.`);
+          }}
+        >
+          <CheckSquare size={15} />
+          Tandai Lunas s/d Bulan {CURRENT_MONTH}
+        </button>
+
+        {/* Column Visibility */}
+        <ColumnVisibilityDropdown table={table} />
+
+        {/* Pagination Info */}
+        <div className="ml-auto text-sm text-gray-500">
+          {table.getFilteredRowModel().rows.length} dari {scheduleData.length} baris
+        </div>
+      </div>
+
+      {/* Phase Legend */}
+      <div className="flex flex-wrap gap-4 text-xs">
+        {PHASES.map((phase, i) => (
+          <div key={i} className="flex items-center gap-1.5">
+            <div
+              className={cn(
+                'w-3 h-3 rounded-full',
+                i === 0 ? 'bg-blue-500' : i === 1 ? 'bg-amber-500' : 'bg-red-500',
+              )}
+            />
+            <span className="text-gray-600">
+              Fase {i + 1}: {formatPct(phase.annualRate)} &middot; {formatIDR(phase.installment)}/bln
+              ({phase.startMonth}–{phase.endMonth})
+            </span>
+          </div>
+        ))}
+        <div className="flex items-center gap-1.5">
+          <div className="w-3 h-3 rounded border-2 border-blue-400 bg-blue-50" />
+          <span className="text-gray-600">Bulan aktif (biru)</span>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <tr key={headerGroup.id} className="bg-gray-50 border-b border-gray-200">
+                  {headerGroup.headers.map((header) => (
+                    <th
+                      key={header.id}
+                      className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap"
+                      style={{ width: header.getSize() }}
+                    >
+                      {header.isPlaceholder ? null : (
+                        <button
+                          className={cn(
+                            'inline-flex items-center gap-1',
+                            header.column.getCanSort() && 'cursor-pointer select-none hover:text-gray-900',
+                          )}
+                          onClick={header.column.getToggleSortingHandler()}
+                        >
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                          {header.column.getCanSort() && (
+                            <SortIcon sorted={header.column.getIsSorted()} />
+                          )}
+                        </button>
+                      )}
+                    </th>
+                  ))}
+                </tr>
+              ))}
+            </thead>
+            <tbody>
+              {table.getRowModel().rows.map((row) => {
+                const month = row.original.monthNumber;
+                const isCurrent = month === CURRENT_MONTH;
+                const isBoundary = isPhaseBoundary(month);
+                const isFuture = month > CURRENT_MONTH;
+
+                return (
+                  <tr
+                    key={row.id}
+                    className={cn(
+                      'border-b border-gray-100 transition-colors',
+                      isCurrent && 'bg-blue-50 border-l-2 border-l-blue-500',
+                      isBoundary && !isCurrent && 'border-t-2 border-t-amber-300',
+                      isFuture && !isCurrent && 'opacity-70',
+                      !isCurrent && 'hover:bg-gray-50',
+                    )}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <td
+                        key={cell.id}
+                        className="px-3 py-2.5 whitespace-nowrap"
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination */}
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-gray-200 bg-gray-50">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => table.setPageIndex(0)}
+              disabled={!table.getCanPreviousPage()}
+              className="px-2 py-1 text-sm border border-gray-200 rounded bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+            >
+              {'<<'}
+            </button>
+            <button
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+              className="px-2 py-1 text-sm border border-gray-200 rounded bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+            >
+              {'<'}
+            </button>
+            <button
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+              className="px-2 py-1 text-sm border border-gray-200 rounded bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+            >
+              {'>'}
+            </button>
+            <button
+              onClick={() => table.setPageIndex(table.getPageCount() - 1)}
+              disabled={!table.getCanNextPage()}
+              className="px-2 py-1 text-sm border border-gray-200 rounded bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+            >
+              {'>>'}
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 text-sm text-gray-600">
+            <span>
+              Halaman{' '}
+              <strong>
+                {table.getState().pagination.pageIndex + 1} dari {table.getPageCount()}
+              </strong>
+            </span>
+            <span className="text-gray-400">|</span>
+            <span>
+              Ke halaman:{' '}
+              <input
+                type="number"
+                min={1}
+                max={table.getPageCount()}
+                value={table.getState().pagination.pageIndex + 1}
+                onChange={(e) => {
+                  const page = e.target.value ? Number(e.target.value) - 1 : 0;
+                  table.setPageIndex(page);
+                }}
+                className="w-14 px-2 py-0.5 border border-gray-200 rounded text-center text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+              />
+            </span>
+            <span className="text-gray-400">|</span>
+            <select
+              value={table.getState().pagination.pageSize}
+              onChange={(e) => table.setPageSize(Number(e.target.value))}
+              className="px-2 py-0.5 border border-gray-200 rounded text-sm bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+            >
+              {[10, 20, 30, 50, 100, 240].map((size) => (
+                <option key={size} value={size}>
+                  {size === 240 ? 'Semua (240)' : `${size} baris`}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => {
+                const idx = scheduleData.findIndex((e) => e.monthNumber === CURRENT_MONTH);
+                if (idx >= 0) {
+                  const pageSize = table.getState().pagination.pageSize;
+                  table.setPageIndex(Math.floor(idx / pageSize));
+                }
+              }}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+            >
+              <CalendarDays size={12} />
+              Ke Bulan Aktif
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Stacked Area Chart */}
+      <PrincipalVsInterestChart data={scheduleData} />
     </div>
   );
 }
