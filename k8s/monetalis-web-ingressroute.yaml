@@ -12,7 +12,7 @@ spec:
     - match: Host(`monetalis.danipras.dev`)
       kind: Rule
       services:
-        - name: monetalis-web
+        - name: monetalis-web-service
           port: 80
   tls:
     certResolver: letsencrypt

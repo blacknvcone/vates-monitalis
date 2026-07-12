@@ -24,9 +24,7 @@ spec:
           ports:
             - containerPort: 80
               name: http
-          env:
-            - name: NODE_ENV
-              value: "production"
+              protocol: TCP
           resources:
             requests:
               cpu: 50m
@@ -40,11 +38,13 @@ spec:
               port: 80
             initialDelaySeconds: 10
             periodSeconds: 30
+            failureThreshold: 3
           readinessProbe:
             httpGet:
               path: /
               port: 80
             initialDelaySeconds: 5
             periodSeconds: 10
+            failureThreshold: 3
       imagePullSecrets:
         - name: ghcr-pull-secret
