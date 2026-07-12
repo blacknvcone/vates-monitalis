@@ -26,16 +26,31 @@ Personal finance dashboard untuk monitoring dan optimasi Kredit Pemilikan Rumah 
 | Auth | Payload built-in JWT + API key |
 | Email | Nodemailer via Google SMTP |
 | Deploy | Docker + K8s + Traefik |
-| Domain | monetalis.danipras.dev |
 
 ## Architecture
 
 ```
-Browser → [Vite SPA :3000] → Payload REST API → [MongoDB Atlas]
-                                    ↘ [Google SMTP]
+┌──────────────────────┐          ┌──────────────────────┐
+│ monetalis.danipras.dev│          │ cms.danipras.dev     │
+│                      │          │                      │
+│  Vite SPA (nginx)    │──API───►│  Payload CMS 3.x     │
+│  Dashboard, Table,   │  calls  │  REST + GraphQL      │
+│  Simulator, Insights │          │  Admin Panel /admin  │
+│                      │          │       │         │    │
+└──────────────────────┘          └───────▼─────────▼────┘
+                                   MongoDB Atlas  Google SMTP
 ```
 
-Frontend adalah standalone SPA yang memanggil Payload CMS REST API. CMS di-deploy terpisah di `cms.danipras.dev` dan juga melayani aplikasi lain (portfolio web).
+Frontend adalah standalone SPA yang memanggil Payload CMS REST API langsung ke `cms.danipras.dev`. CMS di-deploy terpisah dan juga melayani aplikasi lain (portfolio web).
+
+### Domains
+
+| Domain | Service | Description |
+|--------|---------|-------------|
+| `monetalis.danipras.dev` | Monetalis Web | Frontend SPA (Vite + nginx) |
+| `cms.danipras.dev` | Payload CMS | Shared backend + admin panel |
+| `cms.danipras.dev/admin` | Payload Admin | CMS admin interface |
+| `cms.danipras.dev/api/*` | Payload REST API | Auto-generated + custom endpoints |
 
 ## Project Structure
 
@@ -65,7 +80,7 @@ src/
 # Install dependencies
 pnpm install
 
-# Start dev server
+# Start dev server (port 3000, proxies /api to localhost:3001)
 pnpm dev
 
 # Build for production
@@ -78,12 +93,19 @@ pnpm preview
 ### Environment Variables
 
 ```env
-VITE_CMS_URL=http://localhost:3001  # Payload CMS URL
+# Production
+VITE_CMS_URL=https://cms.danipras.dev
+
+# Local development
+VITE_CMS_URL=http://localhost:3001
 ```
 
 ## CMS Backend
 
-Backend menggunakan Payload CMS 3.x yang shared dengan aplikasi lain. Repository: [revamp-portfolio](https://github.com/blacknvcone/revamp-portfolio)
+Backend menggunakan Payload CMS 3.x yang shared dengan aplikasi lain.
+
+- Repository: [revamp-portfolio](https://github.com/blacknvcone/revamp-portfolio)
+- Admin panel: [cms.danipras.dev/admin](https://cms.danipras.dev/admin)
 
 ### Collections (grouped under "Monetalis" in admin)
 
@@ -109,13 +131,43 @@ Backend menggunakan Payload CMS 3.x yang shared dengan aplikasi lain. Repository
 
 ## Deployment
 
-Deploy di K8s dengan Traefik IngressRoute:
+### CI/CD
+
+Push tag `v*` untuk trigger GitHub Actions:
+1. Build Docker image (Vite + nginx)
+2. Push ke GitHub Container Registry (GHCR)
+3. Webhook trigger rolling restart di K8s
+
+```bash
+git tag -a v1.0.1 -m "release" && git push origin v1.0.1
+```
+
+### K8s
+
+Manifests di-deploy di [obelix](https://github.com/blacknvcone/obelix) repo:
 
 ```
-monetalis.danipras.dev       → web (Vite static + nginx)
-monetalis.danipras.dev/api   → cms (Payload CMS, shared)
-monetalis.danipras.dev/admin → cms (Payload admin panel)
+obelix/monetalis/
+├── monetalis-namespace.yaml
+├── monetalis-web-deployment.yaml
+├── monetalis-web-service.yaml
+└── monetalis-web-ingressroute.yaml
 ```
+
+```bash
+kubectl apply -f monetalis/monetalis-namespace.yaml
+kubectl apply -f monetalis/monetalis-web-deployment.yaml
+kubectl apply -f monetalis/monetalis-web-service.yaml
+kubectl apply -f monetalis/monetalis-web-ingressroute.yaml
+```
+
+### Restart after new image
+
+```bash
+kubectl rollout restart deployment/monetalis-web -n monetalis
+```
+
+Or via webhook (automatic on tag push).
 
 ## KPR Data
 
