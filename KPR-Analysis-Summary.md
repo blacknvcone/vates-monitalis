@@ -3,6 +3,7 @@
 **Dokumen:** Surat Penawaran Putusan Kredit (Offering Letter) No. B.2069-KC-SBY-10-2023
 **Tanggal:** 23 Oktober 2023
 **Cabang:** Kanca HR Muhammad, Surabaya
+**Pembayaran pertama:** November 2023
 
 ---
 
@@ -26,9 +27,9 @@
 
 | Fase | Periode | Suku Bunga | Angsuran/bulan |
 |------|---------|------------|----------------|
-| Fase 1 | Tahun 1-3 (bulan 1-36) | **4.75%** p.a. | Rp 2,681,900 |
-| Fase 2 | Tahun 4-6 (bulan 37-72) | **8.00%** p.a. | Rp 3,367,400 |
-| Fase 3 | Tahun 7-20 (bulan 73-240) | **10.25%** p.a. | Rp 3,815,600 |
+| Fase 1 | Bulan 1-36 (Nov 2023 - Okt 2026) | **4.75%** p.a. | Rp 2,681,900 |
+| Fase 2 | Bulan 37-72 (Nov 2026 - Okt 2029) | **8.00%** p.a. | Rp 3,367,400 |
+| Fase 3 | Bulan 73-240 (Nov 2029 - Okt 2043) | **10.25%** p.a. | Rp 3,815,600 |
 
 > Catatan: Bunga bersifat fixed per tier. BRI berhak melakukan review sesuai kondisi pasar.
 
@@ -67,21 +68,20 @@
 
 ## 5. Sisa Pokok di Setiap Titik Waktu
 
-| Waktu | Sisa Pokok | % Pokok Terbayar | Bunga Aktif |
-|-------|-----------|------------------|-------------|
-| Akhir Tahun 1 (bln 12) | Rp 402,254,598 | 3.1% | 4.75% |
-| Akhir Tahun 2 (bln 24) | Rp 388,890,432 | 6.3% | 4.75% |
-| **Akhir Tahun 3 (bln 36)** | **Rp 374,877,462** | **9.7%** | **4.75%** |
-| Akhir Tahun 4 (bln 48) | Rp 364,068,227 | 12.3% | 8.00% |
-| Akhir Tahun 5 (bln 60) | Rp 352,361,830 | 15.1% | 8.00% |
-| **Akhir Tahun 6 (bln 72)** | **Rp 339,683,808** | **18.1%** | **8.00%** |
-| Akhir Tahun 7 (bln 84) | Rp 328,183,896 | 20.9% | 10.25% |
-| Akhir Tahun 8 (bln 96) | Rp 315,448,260 | 24.0% | 10.25% |
-| Akhir Tahun 9 (bln 108) | Rp 301,344,114 | 27.4% | 10.25% |
-| Akhir Tahun 10 (bln 120) | Rp 285,724,405 | 31.2% | 10.25% |
-| Akhir Tahun 12 (bln 144) | Rp 249,269,379 | 39.9% | 10.25% |
-| Akhir Tahun 15 (bln 180) | Rp 178,539,079 | 57.0% | 10.25% |
-| Akhir Tahun 20 (bln 240) | Rp 0 | 100.0% | 10.25% |
+| Bulan | Waktu | Sisa Pokok | % Terbayar | Bunga Aktif |
+|-------|-------|-----------|------------|-------------|
+| 12 | Okt 2024 | Rp 402,254,598 | 3.1% | 4.75% |
+| 24 | Okt 2025 | Rp 388,890,432 | 6.3% | 4.75% |
+| **33** | **Jul 2026 (SAAT INI)** | **Rp 378,443,227** | **8.8%** | **4.75%** |
+| **36** | **Okt 2026** | **Rp 374,877,462** | **9.7%** | **4.75%** |
+| 48 | Okt 2027 | Rp 364,068,227 | 12.3% | 8.00% |
+| 60 | Okt 2028 | Rp 352,361,830 | 15.1% | 8.00% |
+| **72** | **Okt 2029** | **Rp 339,683,808** | **18.1%** | **8.00%** |
+| 84 | Okt 2030 | Rp 328,183,896 | 20.9% | 10.25% |
+| 96 | Okt 2031 | Rp 315,448,260 | 24.0% | 10.25% |
+| 120 | Okt 2033 | Rp 285,724,405 | 31.2% | 10.25% |
+| 180 | Okt 2038 | Rp 178,539,079 | 57.0% | 10.25% |
+| 240 | Okt 2043 | Rp 0 | 100.0% | 10.25% |
 
 ---
 
@@ -89,10 +89,10 @@
 
 | Periode | Bunga Terakumulasi |
 |---------|-------------------|
-| Bln 1-36 (4.75%) | Rp 56,425,862 |
-| Bln 37-72 (8.00%) | Rp 86,032,746 |
+| Bulan 1-36 (4.75%) | Rp 56,425,862 |
+| Bulan 37-72 (8.00%) | Rp 86,032,746 |
 | **Total s/d bln 72** | **Rp 142,458,608** |
-| Bln 73-240 (10.25%) | Rp 301,323,523 |
+| Bulan 73-240 (10.25%) | Rp 301,323,523 |
 | **Total 20 tahun** | **Rp 443,782,131** |
 
 ---
@@ -109,29 +109,27 @@
 - Pelunasan penuh: max **tanggal 15** setiap bulan
 - Sertifikat agunan dikembalikan **7-90 hari kerja** setelah lunas
 
-### Skenario Pelunasan (setelah tahun ke-3, penalti 2.5%)
+### Skenario Pelunasan
 
-| Skenario | Sisa Pokok | Penalti 2.5% | Total ke BRI | Sudah Dibayar | Grand Total |
-|----------|-----------|--------------|--------------|---------------|-------------|
-| Akhir Tahun 3 (bln 36) | Rp 374,877,462 | Rp 9,371,937 | Rp 384,249,399 | Rp 96,548,400 | **Rp 480,797,799** |
-| Akhir Tahun 4 (bln 48) | Rp 364,068,227 | Rp 9,101,706 | Rp 373,169,933 | Rp 136,957,200 | Rp 510,127,133 |
-| Akhir Tahun 5 (bln 60) | Rp 352,361,830 | Rp 8,809,046 | Rp 361,170,876 | Rp 177,366,000 | Rp 538,536,876 |
-| Akhir Tahun 6 (bln 72) | Rp 339,683,808 | Rp 8,492,095 | Rp 348,175,903 | Rp 217,774,800 | Rp 565,950,703 |
-| Akhir Tahun 7 (bln 84) | Rp 328,183,896 | Rp 8,204,597 | Rp 336,388,493 | Rp 263,562,000 | Rp 599,950,493 |
-| Akhir Tahun 8 (bln 96) | Rp 315,448,260 | Rp 7,886,206 | Rp 323,334,466 | Rp 309,349,200 | Rp 632,683,666 |
-| Akhir Tahun 10 (bln 120) | Rp 285,724,405 | Rp 7,143,110 | Rp 292,867,515 | Rp 400,923,600 | Rp 693,791,115 |
+| Skenario | Bulan | Sisa Pokok | Penalti | Total ke BRI | Sudah Dibayar | Grand Total | Hemat |
+|----------|-------|-----------|---------|--------------|---------------|-------------|-------|
+| **Jul 2026 (sekarang)** | 33 | Rp 378,443,227 | 10% = Rp 37,844,323 | Rp 416,287,550 | Rp 88,502,700 | **Rp 504,790,250** | Rp 353,991,881 |
+| **Okt 2026 (IDEAL)** | 36 | Rp 374,877,462 | 2.5% = Rp 9,371,937 | Rp 384,249,399 | Rp 96,548,400 | **Rp 480,797,799** | Rp 377,984,332 |
+| Nov 2026 | 37 | Rp 374,009,247 | 2.5% = Rp 9,350,231 | Rp 383,359,478 | Rp 99,915,800 | **Rp 483,275,278** | Rp 375,506,853 |
+| Okt 2029 | 72 | Rp 339,683,808 | 2.5% = Rp 8,492,095 | Rp 348,175,903 | Rp 217,774,800 | **Rp 565,950,703** | Rp 292,831,428 |
+| Okt 2033 | 120 | Rp 285,724,405 | 2.5% = Rp 7,143,110 | Rp 292,867,515 | Rp 400,923,600 | **Rp 693,791,115** | Rp 164,991,016 |
 
-### Hemat Dibanding Tenor Penuh 20 Tahun (Rp 858,782,131)
+### Perbandingan Close Sekarang vs Tunggu Oktober 2026
 
-| Skenario | Hemat | % Hemat |
-|----------|-------|---------|
-| **Akhir Tahun 3 (bln 36)** | **Rp 377,984,332** | **44.0%** |
-| Akhir Tahun 4 (bln 48) | Rp 348,654,998 | 40.6% |
-| Akhir Tahun 5 (bln 60) | Rp 320,245,255 | 37.3% |
-| **Akhir Tahun 6 (bln 72)** | **Rp 292,831,428** | **34.1%** |
-| Akhir Tahun 7 (bln 84) | Rp 258,831,638 | 30.1% |
-| Akhir Tahun 8 (bln 96) | Rp 226,098,464 | 26.3% |
-| Akhir Tahun 10 (bln 120) | Rp 164,991,016 | 19.2% |
+| Aspek | Lunasi Juli 2026 (10%) | Tunggu Okt 2026 (2.5%) |
+|-------|----------------------|------------------------|
+| Sisa pokok | Rp 378,443,227 | Rp 374,877,462 |
+| Penalti | Rp 37,844,323 | Rp 9,371,937 |
+| Grand total | Rp 504,790,250 | Rp 480,797,799 |
+| **Hemat vs 20 thn** | **Rp 353,991,881** | **Rp 377,984,332** |
+| Selisih hemat | - | **+Rp 23,992,451** |
+
+> **Kesimpulan:** Tunggu sampai Oktober 2026 lebih hemat **~Rp 24 juta** karena penalti turun dari 10% ke 2.5%. Extra cost 3 bulan cicilan (Rp 8 juta) jauh lebih kecil dari selisih penalti (Rp 28.5 juta).
 
 ---
 
@@ -141,15 +139,12 @@ Penalti 2.5% adalah **one-time cost**. Bunga KPR adalah **ongoing cost**. Berapa
 
 | Waktu Pelunasan | Penalti | Bunga/bln | Break-even |
 |----------------|---------|-----------|------------|
-| Akhir Tahun 3 | Rp 9,371,937 | Rp 2,499,183 | **3.8 bulan** |
-| Akhir Tahun 4 | Rp 9,101,706 | Rp 2,427,122 | **3.8 bulan** |
-| Akhir Tahun 5 | Rp 8,809,046 | Rp 2,349,079 | **3.8 bulan** |
-| Akhir Tahun 6 | Rp 8,492,095 | Rp 2,901,466 | **2.9 bulan** |
-| Akhir Tahun 7 | Rp 8,204,597 | Rp 2,803,237 | **2.9 bulan** |
-| Akhir Tahun 8 | Rp 7,886,206 | Rp 2,694,454 | **2.9 bulan** |
-| Akhir Tahun 10 | Rp 7,143,110 | Rp 2,440,563 | **2.9 bulan** |
+| Okt 2026 (bln 36) | Rp 9,371,937 | Rp 1,478,294 | **6.3 bulan** |
+| Nov 2026 (bln 37) | Rp 9,350,231 | Rp 2,493,395 | **3.7 bulan** |
+| Okt 2029 (bln 72) | Rp 8,492,095 | Rp 2,271,862 | **3.7 bulan** |
+| Okt 2033 (bln 120) | Rp 7,143,110 | Rp 2,440,563 | **2.9 bulan** |
 
-> Penalti 2.5% sangat murah -- tertutup dalam **3-4 bulan** dari penghematan bunga.
+> Penalti 2.5% sangat murah -- tertutup dalam **3-6 bulan** dari penghematan bunga.
 
 ---
 
@@ -157,17 +152,19 @@ Penalti 2.5% adalah **one-time cost**. Bunga KPR adalah **ongoing cost**. Berapa
 
 | Item | Status |
 |------|--------|
-| KPR mulai | Oktober 2023 |
-| Sudah jalan | ~33 bulan (masuk tahun ke-3) |
+| Pembayaran pertama | November 2023 |
+| Bulan ke- | **33 dari 240** |
 | Bunga aktif | **4.75%** (tier terendah) |
-| Sisa di tier ini | ~3 bulan lagi (sampai Oktober 2026) |
+| Sisa pokok | **Rp 378,443,227** |
+| Sisa di tier 4.75% | **3 bulan lagi (Ags, Sep, Okt 2026)** |
 
 ### Timeline Kenaikan Bunga
 
-| Waktu | Bunga Baru | Angsuran Baru | Kenaikan |
-|-------|-----------|---------------|----------|
-| **Oktober 2026** (bln 36) | 8.00% | Rp 3,367,400 | +Rp 685,500/bln |
-| **Oktober 2029** (bln 72) | 10.25% | Rp 3,815,600 | +Rp 448,200/bln |
+| Bulan | Waktu | Bunga | Angsuran | Kenaikan |
+|-------|-------|-------|----------|----------|
+| 33-36 | Jul - Okt 2026 | 4.75% | Rp 2,681,900 | - |
+| **37** | **Nov 2026** | **8.00%** | **Rp 3,367,400** | **+Rp 685,500/bln** |
+| **73** | **Nov 2029** | **10.25%** | **Rp 3,815,600** | **+Rp 448,200/bln** |
 
 ---
 
@@ -186,18 +183,19 @@ Penalti 2.5% adalah **one-time cost**. Bunga KPR adalah **ongoing cost**. Berapa
 
 ### Kesimpulan Opportunity Cost
 
-- **Tahun 1-3 (4.75%):** Bunga KPR lebih murah dari deposito. **JANGAN lunasi dulu** -- uang lebih produktif diinvestasikan.
-- **Tahun 4-6 (8.00%):** Sebanding dengan investasi moderate. Pertimbangkan lunasi di akhir tahun ke-3.
-- **Tahun 7+ (10.25%):** Lebih tinggi dari hampir semua instrumen risiko rendah. **Sangat direkomendasikan lunasi.**
+- **Saat ini (4.75%):** Bunga KPR lebih murah dari deposito. **JANGAN lunasi dulu** -- uang lebih produktif diinvestasikan.
+- **Nov 2026+ (8.00%):** Sebanding dengan investasi moderate. Pertimbangkan lunasi.
+- **Nov 2029+ (10.25%):** Lebih tinggi dari hampir semua instrumen risiko rendah. **Sangat direkomendasikan lunasi.**
 
 ---
 
 ## 11. Rekomendasi Strategi
 
-### REKOMENDASI #1 (TERBAIK): Lunasi di Oktober 2026 (bulan ke-36)
+### REKOMENDASI #1 (TERBAIK): Lunasi di Oktober 2026
 
 | Item | Nilai |
 |------|-------|
+| Bulan ke- | 36 |
 | Sisa pokok | Rp 374,877,462 |
 | Penalti 2.5% | Rp 9,371,937 |
 | Total bayar ke BRI | Rp 384,249,399 |
@@ -207,16 +205,25 @@ Penalti 2.5% adalah **one-time cost**. Bunga KPR adalah **ongoing cost**. Berapa
 
 **Kenapa Oktober 2026?**
 1. Penalti sudah turun ke 2.5% (dari 10% jika sebelum 3 tahun)
-2. Sebelum bunga naik ke 8% (hemat 3.25% bunga tahunan)
-3. Break-even penalti cuma 4 bulan
+2. Masih di tier bunga 4.75% (belum kena 8%)
+3. Break-even penalti ~6 bulan
+4. Hemat Rp 24 juta dibanding lunasi sekarang (Juli 2026)
 
-### REKOMENDASI #2 (FALLBACK): Lunasi sebelum Oktober 2029
+### REKOMENDASI #2 (ALTERNATIF): Lunasi sebelum November 2029
 
 Jika belum punya dana Rp 384 juta di Oktober 2026:
 - Kumpulkan dana selama 3 tahun di tier 8%
-- Targetkan lunas **sebelum tier 10.25% aktif**
+- Targetkan lunas **sebelum tier 10.25% aktif (November 2029)**
 - Sisa pokok bln 72: Rp 339,683,808
 - Hemat: Rp 292,831,428 (34%)
+
+### OPSI LAIN: Pelunasan Sebagian Berkala
+
+Jika tidak bisa lunas sekaligus:
+- Setiap tahun, bayar ekstra min 6x angsuran (= Rp 16-23 juta tergantung fase)
+- Ini mengurangi pokok -> mengurangi total bunga
+- Penalti tetap 2.5% dari jumlah yang dilunasi
+- Bisa dilakukan kapan saja setelah tahun ke-1
 
 ---
 
@@ -228,13 +235,13 @@ Jika belum punya dana Rp 384 juta di Oktober 2026:
 
 3. **Biaya Notaris Pelepasan HT:** Estimasi Rp 5-15 juta. Tanyakan ke BRI/notaris untuk biaya pasti.
 
-4. **Pelunasan Sebagian:** Jika tidak bisa lunas sekaligus, bisa bayar ekstra min 6x angsuran per tahun. Ini mengurangi pokok dan total bunga. Penalti tetap 2.5% dari jumlah yang dilunasi.
+4. **Bunga Dapat Berubah:** BRI berhak mengubah bunga sesuai kondisi pasar. Pastikan tier bunga tercantum eksplisit di Perjanjian Kredit (PK), bukan hanya di Offering Letter.
 
-5. **Bunga Dapat Berubah:** BRI berhak mengubah bunga sesuai kondisi pasar. Pastikan tier bunga tercantum eksplisit di Perjanjian Kredit (PK), bukan hanya di Offering Letter.
+5. **Bundling Products:** Wajib punya BRIMO, kartu kredit BRI, dan produk Britama. Saat KPR lunas, pertimbangkan tutup produk yang tidak perlu (hemat annual fee).
 
-6. **Bundling Products:** Wajib punya BRIMO, kartu kredit BRI, dan produk Britama. Saat KPR lunas, pertimbangkan tutup produk yang tidak perlu (hemat annual fee).
+6. **Pelunasan Penuh:** Max tanggal 15 setiap bulan, ajukan 7 hari kerja sebelumnya.
 
-7. **Pelunasan Penuh:** Max tanggal 15 setiap bulan, ajukan 7 hari kerja sebelumnya.
+7. **Verifikasi Tenor Minimum:** Pastikan ke BRI kapan tepatnya tenor minimum 3 tahun berakhir. Jika dihitung dari tanggal akad (Okt 2023), maka penalti 2.5% berlaku mulai **Oktober 2026**.
 
 ---
 
@@ -242,6 +249,9 @@ Jika belum punya dana Rp 384 juta di Oktober 2026:
 
 > **Total bunga 20 tahun: Rp 443,782,131 (= 107% dari pokok!)**
 >
-> Lunasi secepatnya setelah Oktober 2026 (bulan ke-36). Setiap bulan terlambat = ~Rp 2.5-3.8 juta bunga hangus.
+> Posisi Anda saat ini: bulan 33/240, sisa pokok Rp 378.4 juta, masih di tier 4.75%.
 >
-> Hubungi BRI Kanca HR Muhammad untuk proses pelunasan.
+> **TUNGGU sampai Oktober 2026** (penalti turun ke 2.5%), lalu lunasi.
+> Grand total cost: Rp 480.8 juta, hemat Rp 378 juta (44%) dari tenor penuh.
+>
+> Jika tidak bisa Oktober 2026, **MAKSIMAL lunasi sebelum November 2029** untuk hindari tier 10.25%.
