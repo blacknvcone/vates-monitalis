@@ -7,10 +7,7 @@ import { routeTree } from './routeTree.gen';
 import './app.css';
 
 // Create router
-const router = createRouter({
-  routeTree,
-  defaultPreload: 'intent',
-});
+const router = createRouter({ routeTree });
 
 // Register router type
 declare module '@tanstack/react-router' {
@@ -23,23 +20,20 @@ declare module '@tanstack/react-router' {
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
+      staleTime: 1000 * 60 * 5,
       retry: 2,
     },
   },
 });
 
 // Render
-const rootElement = document.getElementById('root')!;
-if (!rootElement.innerHTML) {
-  const root = ReactDOM.createRoot(rootElement);
-  root.render(
-    <React.StrictMode>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <RouterProvider router={router} />
-        </AuthProvider>
-      </QueryClientProvider>
-    </React.StrictMode>,
-  );
-}
+const root = ReactDOM.createRoot(document.getElementById('root')!);
+root.render(
+  <React.StrictMode>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <RouterProvider router={router} />
+      </AuthProvider>
+    </QueryClientProvider>
+  </React.StrictMode>,
+);
