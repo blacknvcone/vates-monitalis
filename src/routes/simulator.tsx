@@ -9,6 +9,11 @@ import {
   AlertTriangle,
   Target,
   ArrowRight,
+  Wallet,
+  Receipt,
+  TrendingUp,
+  CalendarDays,
+  CircleDollarSign,
 } from 'lucide-react';
 import {
   BarChart,
@@ -22,8 +27,13 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
-import { formatIDR, formatPct } from '@/lib/format';
+import { formatIDR, formatPct, formatMonthLabel } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import {
+  generateMockSchedule,
+  getCurrentStatus,
+  MOCK_LOAN,
+} from '@/lib/mock-data';
 
 // ============================================================
 // Mock Loan Data (mirrors dashboard)
@@ -206,6 +216,112 @@ function computeExtraPayment(monthlyExtra: number, startMonth: number) {
     totalInterestNew,
     interestSaved,
     amortCurve,
+  };
+}
+
+// ============================================================
+// Simulation: Savings (Menabung)
+// ============================================================
+
+function computeSavingsSimulation(
+  monthlyIncome: number,
+  monthlyExpenses: number,
+  currentSavings: number,
+) {
+  const status = getCurrentStatus();
+  const schedule = generateMockSchedule();
+  const loan = MOCK_LOAN;
+
+  const monthlyKPR = status.currentInstallment;
+  const monthlySavings = monthlyIncome - monthlyExpenses - monthlyKPR;
+
+  if (monthlySavings <= 0) {
+    return {
+      error: 'Pengeluaran + angsuran KPR melebihi atau sama dengan pemasukan. Tidak ada sisa untuk ditabung.',
+      monthlyKPR,
+      monthlySavings,
+    };
+  }
+
+  let savings = currentSavings;
+  let month = 0;
+  const savingsHistory: {
+    month: number;
+    cumulativeSavings: number;
+    kprBalance: number;
+    needed: number;
+    penalty: number;
+  }[] = [];
+
+  while (month < status.monthsRemaining) {
+    month++;
+    savings += monthlySavings;
+
+    const targetMonth = status.currentMonth + month;
+    const entry = schedule[targetMonth];
+    if (!entry) break;
+
+    const balance = entry.outstandingBalance;
+    const isAfterMinTenor = targetMonth >= loan.minTenorMonths;
+    const penaltyRate = isAfterMinTenor
+      ? loan.penaltyAfterMinTenor
+      : loan.penaltyBeforeMinTenor;
+    const penalty = Math.round(balance * penaltyRate / 100);
+    const needed = balance + penalty;
+
+    // Sample every 3 months for chart, plus first and last
+    if (month <= 3 || month % 3 === 0 || savings >= needed) {
+      savingsHistory.push({ month, cumulativeSavings: savings, kprBalance: balance, needed, penalty });
+    }
+
+    if (savings >= needed) {
+      // Calculate optimal payoff date
+      const payoffDate = entry.calendarDate;
+
+      // Calculate what happens if they invest instead (assume 6% annual return)
+      const investRate = 0.06 / 12;
+      let investSavings = currentSavings;
+      for (let m = 1; m <= month; m++) {
+        investSavings = investSavings * (1 + investRate) + monthlySavings;
+      }
+
+      // Total interest that would be paid if they keep paying KPR
+      let remainingInterest = 0;
+      for (let m = status.currentMonth + month + 1; m <= 240; m++) {
+        const e = schedule[m];
+        if (e) remainingInterest += e.interestPortion;
+      }
+
+      return {
+        monthlyIncome,
+        monthlyExpenses,
+        monthlyKPR,
+        monthlySavings,
+        currentSavings,
+        monthsToGoal: month,
+        optimalMonth: targetMonth,
+        payoffDate,
+        totalSaved: savings,
+        kprBalance: balance,
+        penalty,
+        penaltyRate,
+        needed,
+        savingsHistory,
+        investComparison: {
+          investValue: Math.round(investSavings),
+          savingsValue: savings,
+          difference: Math.round(savings - investSavings),
+          remainingInterest,
+        },
+        error: null,
+      };
+    }
+  }
+
+  return {
+    error: 'Tidak bisa mengumpulkan cukup dana dalam sisa tenor yang tersedia.',
+    monthlyKPR,
+    monthlySavings,
   };
 }
 
@@ -639,11 +755,346 @@ function ExtraPaymentTab() {
 }
 
 // ============================================================
+// Tab 3: Savings Simulation (Simulasi Menabung)
+// ============================================================
+
+function SavingsTab() {
+  const status = getCurrentStatus();
+  const [monthlyIncome, setMonthlyIncome] = useState(10);
+  const [monthlyExpenses, setMonthlyExpenses] = useState(4);
+  const [currentSavings, setCurrentSavings] = useState(50);
+
+  const result = useMemo(
+    () =>
+      computeSavingsSimulation(
+        monthlyIncome * 1_000_000,
+        monthlyExpenses * 1_000_000,
+        currentSavings * 1_000_000,
+      ),
+    [monthlyIncome, monthlyExpenses, currentSavings],
+  );
+
+  const hasError = 'error' in result && result.error !== null;
+
+  // Format payoff date
+  const payoffDateFormatted = !hasError && 'payoffDate' in result && result.payoffDate
+    ? formatMonthLabel(result.optimalMonth, MOCK_LOAN.firstPayment)
+    : null;
+
+  return (
+    <div className="space-y-6">
+      {/* Input Section */}
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <div className="flex items-center gap-2 mb-4">
+          <PiggyBank size={18} className="text-primary" />
+          <h3 className="text-sm font-semibold text-gray-700">Parameter Simulasi Menabung</h3>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-600 mb-2">
+              Gaji Pokok per Bulan
+            </label>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">Rp</span>
+              <input
+                type="number"
+                min={1}
+                max={100}
+                step={0.5}
+                value={monthlyIncome}
+                onChange={(e) => setMonthlyIncome(Number(e.target.value))}
+                className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-primary focus:border-primary"
+              />
+              <span className="text-sm text-gray-500">juta</span>
+            </div>
+            <p className="text-xs text-gray-400 mt-1">= {formatIDR(monthlyIncome * 1_000_000)} / bulan</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-600 mb-2">
+              Pengeluaran Tetap per Bulan
+            </label>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">Rp</span>
+              <input
+                type="number"
+                min={0.5}
+                max={50}
+                step={0.5}
+                value={monthlyExpenses}
+                onChange={(e) => setMonthlyExpenses(Number(e.target.value))}
+                className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-primary focus:border-primary"
+              />
+              <span className="text-sm text-gray-500">juta</span>
+            </div>
+            <p className="text-xs text-gray-400 mt-1">= {formatIDR(monthlyExpenses * 1_000_000)} / bulan (tanpa KPR)</p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-600 mb-2">
+              Tabungan Saat Ini
+            </label>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">Rp</span>
+              <input
+                type="number"
+                min={0}
+                max={1000}
+                step={10}
+                value={currentSavings}
+                onChange={(e) => setCurrentSavings(Number(e.target.value))}
+                className="w-28 px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-primary focus:border-primary"
+              />
+              <span className="text-sm text-gray-500">juta</span>
+            </div>
+            <p className="text-xs text-gray-400 mt-1">= {formatIDR(currentSavings * 1_000_000)}</p>
+          </div>
+        </div>
+
+        {/* Info box */}
+        <div className="mt-4 flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
+          <CircleDollarSign size={14} className="text-blue-600 flex-shrink-0" />
+          <p className="text-xs text-blue-700">
+            Angsuran KPR saat ini: <strong>{formatIDR(status.currentInstallment)}</strong> / bulan
+            (Fase {status.currentPhase}, bunga {formatPct(status.currentRate)})
+          </p>
+        </div>
+      </div>
+
+      {/* Error State */}
+      {hasError && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 flex items-start gap-3">
+          <AlertTriangle size={20} className="text-red-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-semibold text-red-700">Simulasi Tidak Memungkinkan</p>
+            <p className="text-sm text-red-600 mt-1">{result.error}</p>
+            {'monthlySavings' in result && result.monthlySavings !== undefined && (
+              <p className="text-xs text-red-500 mt-2">
+                Sisa setelah KPR: {formatIDR(result.monthlySavings)} / bulan —{' '}
+                {result.monthlySavings <= 0
+                  ? 'defisit, kurangi pengeluaran atau tambah pemasukan'
+                  : 'terlalu kecil untuk mencapai target'}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Result Cards */}
+      {!hasError && 'monthsToGoal' in result && (
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <SimCard
+              title="Tabungan per Bulan"
+              value={formatIDR(result.monthlySavings)}
+              subtitle={`Sisa dari ${formatIDR(monthlyIncome * 1_000_000)} - ${formatIDR(monthlyExpenses * 1_000_000)} - KPR`}
+              icon={Wallet}
+              color="blue"
+            />
+            <SimCard
+              title="Bulan ke Tujuan"
+              value={`${result.monthsToGoal} bulan`}
+              subtitle={`${(result.monthsToGoal / 12).toFixed(1)} tahun menabung`}
+              icon={Clock}
+              color="green"
+            />
+            <SimCard
+              title="Tanggal Pelunasan Optimal"
+              value={payoffDateFormatted || '-'}
+              subtitle={`Bulan ke-${result.optimalMonth} dari awal KPR`}
+              icon={CalendarDays}
+              color="purple"
+            />
+            <SimCard
+              title="Total Terkumpul"
+              value={formatIDR(result.totalSaved)}
+              subtitle={`Tabungan ${formatIDR(currentSavings * 1_000_000)} + ${result.monthsToGoal} × ${formatIDR(result.monthlySavings)}`}
+              icon={PiggyBank}
+              color="amber"
+            />
+          </div>
+
+          {/* Insight Banner */}
+          <div className="bg-gradient-to-r from-emerald-50 to-blue-50 border border-emerald-200 rounded-xl p-6">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-emerald-100 rounded-lg">
+                <Target size={20} className="text-emerald-600" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-800">Insight</p>
+                <p className="text-sm text-gray-700 mt-1">
+                  Dengan tabungan <strong>{formatIDR(result.monthlySavings)}</strong>/bulan, Anda bisa
+                  lunasi KPR dalam <strong>{result.monthsToGoal} bulan</strong> (sekitar{' '}
+                  <strong>{(result.monthsToGoal / 12).toFixed(1)} tahun</strong>) pada{' '}
+                  <strong>{payoffDateFormatted}</strong>.
+                </p>
+                <p className="text-xs text-gray-500 mt-2">
+                  Target dana: {formatIDR(result.needed)} (sisa pokok {formatIDR(result.kprBalance)} + penalti{' '}
+                  {formatPct(result.penaltyRate)} = {formatIDR(result.penalty)})
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Breakdown Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <SimCard
+              title="Sisa Pokok KPR"
+              value={formatIDR(result.kprBalance)}
+              subtitle={`Saat bulan ${result.optimalMonth}`}
+              icon={Banknote}
+              color="blue"
+            />
+            <SimCard
+              title="Penalti Pelunasan"
+              value={formatIDR(result.penalty)}
+              subtitle={`Rate ${formatPct(result.penaltyRate)}`}
+              icon={AlertTriangle}
+              color="amber"
+            />
+            <SimCard
+              title="Total Dibutuhkan"
+              value={formatIDR(result.needed)}
+              subtitle="Sisa pokok + penalti"
+              icon={CircleDollarSign}
+              color="red"
+            />
+          </div>
+
+          {/* Savings vs KPR Balance Chart */}
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h3 className="text-sm font-semibold text-gray-700 mb-4">
+              Akumulasi Tabungan vs Saldo KPR
+            </h3>
+            <ResponsiveContainer width="100%" height={350}>
+              <LineChart data={result.savingsHistory}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis
+                  dataKey="month"
+                  tick={{ fontSize: 11 }}
+                  label={{ value: 'Bulan', position: 'insideBottom', offset: -5, fontSize: 11 }}
+                />
+                <YAxis
+                  tick={{ fontSize: 11 }}
+                  tickFormatter={(v) => `${(v / 1_000_000).toFixed(0)}jt`}
+                />
+                <Tooltip
+                  formatter={(value: number, name: string) => [
+                    formatIDR(value),
+                    name === 'cumulativeSavings'
+                      ? 'Total Tabungan'
+                      : name === 'kprBalance'
+                        ? 'Saldo KPR'
+                        : 'Dana Dibutuhkan',
+                  ]}
+                  labelFormatter={(label) => `Bulan ke-${label}`}
+                />
+                <Legend
+                  formatter={(value) =>
+                    value === 'cumulativeSavings'
+                      ? 'Total Tabungan'
+                      : value === 'kprBalance'
+                        ? 'Saldo KPR'
+                        : 'Dana Dibutuhkan (Pokok + Penalti)'
+                  }
+                />
+                <Line
+                  type="monotone"
+                  dataKey="cumulativeSavings"
+                  stroke="#22c55e"
+                  strokeWidth={2.5}
+                  dot={false}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="kprBalance"
+                  stroke="#3b82f6"
+                  strokeWidth={2}
+                  dot={false}
+                  strokeDasharray="6 3"
+                />
+                <Line
+                  type="monotone"
+                  dataKey="needed"
+                  stroke="#ef4444"
+                  strokeWidth={1.5}
+                  dot={false}
+                  strokeDasharray="3 3"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+
+          {/* Comparison: Save vs Invest */}
+          {result.investComparison && (
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h3 className="text-sm font-semibold text-gray-700 mb-4">
+                Perbandingan: Menabung vs Investasi (6%/tahun)
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <PiggyBank size={16} className="text-emerald-600" />
+                    <p className="text-sm font-semibold text-emerald-700">Tabungan (untuk Lunas KPR)</p>
+                  </div>
+                  <p className="text-xl font-bold text-emerald-800">
+                    {formatIDR(result.investComparison.savingsValue)}
+                  </p>
+                  <p className="text-xs text-emerald-600 mt-1">
+                    Dana tersedia untuk pelunasan
+                  </p>
+                </div>
+                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center gap-2 mb-2">
+                    <TrendingUp size={16} className="text-blue-600" />
+                    <p className="text-sm font-semibold text-blue-700">Investasi (6%/tahun)</p>
+                  </div>
+                  <p className="text-xl font-bold text-blue-800">
+                    {formatIDR(result.investComparison.investValue)}
+                  </p>
+                  <p className="text-xs text-blue-600 mt-1">
+                    Nilai investasi setelah {result.monthsToGoal} bulan
+                  </p>
+                </div>
+              </div>
+              <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                <p className="text-xs text-gray-600">
+                  <strong>Catatan:</strong> Dengan menabung, Anda mengumpulkan{' '}
+                  <span className="text-emerald-600 font-medium">
+                    {formatIDR(result.investComparison.savingsValue)}
+                  </span>{' '}
+                  dalam {result.monthsToGoal} bulan. Jika diinvestasikan (reksadana/deposito 6%/tahun),
+                  nilainya menjadi{' '}
+                  <span className="text-blue-600 font-medium">
+                    {formatIDR(result.investComparison.investValue)}
+                  </span>
+                  . Selisih:{' '}
+                  <span className={result.investComparison.difference >= 0 ? 'text-emerald-600' : 'text-red-600'}>
+                    {result.investComparison.difference >= 0 ? '+' : ''}
+                    {formatIDR(result.investComparison.difference)}
+                  </span>
+                  . Namun, melunasi KPR lebih awal menghemat bunga sisa tenor sebesar{' '}
+                  <span className="text-emerald-600 font-medium">
+                    {formatIDR(result.investComparison.remainingInterest)}
+                  </span>
+                  .
+                </p>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
 // Main Page
 // ============================================================
 
 function SimulatorPage() {
-  const [activeTab, setActiveTab] = useState<'early' | 'extra'>('early');
+  const [activeTab, setActiveTab] = useState<'early' | 'extra' | 'savings'>('early');
 
   return (
     <div className="space-y-6">
@@ -656,7 +1107,7 @@ function SimulatorPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 bg-gray-100 p-1 rounded-lg w-fit">
+      <div className="flex gap-2 bg-gray-100 p-1 rounded-lg w-fit flex-wrap">
         <TabButton
           label="Pelunasan Dipercepat"
           active={activeTab === 'early'}
@@ -667,10 +1118,17 @@ function SimulatorPage() {
           active={activeTab === 'extra'}
           onClick={() => setActiveTab('extra')}
         />
+        <TabButton
+          label="Simulasi Menabung"
+          active={activeTab === 'savings'}
+          onClick={() => setActiveTab('savings')}
+        />
       </div>
 
       {/* Tab Content */}
-      {activeTab === 'early' ? <EarlyPayoffTab /> : <ExtraPaymentTab />}
+      {activeTab === 'early' && <EarlyPayoffTab />}
+      {activeTab === 'extra' && <ExtraPaymentTab />}
+      {activeTab === 'savings' && <SavingsTab />}
     </div>
   );
 }

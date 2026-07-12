@@ -6,17 +6,17 @@ import {
   Calendar,
   Plus,
   Trash2,
-  Send,
-  CheckCircle,
   ToggleLeft,
   ToggleRight,
   Download,
   Database,
+  FileText,
+  BarChart3,
 } from 'lucide-react';
 import { formatIDR } from '@/lib/format';
 
 // ============================================================
-// Mock Data & Types
+// Types
 // ============================================================
 
 interface Reminder {
@@ -24,18 +24,39 @@ interface Reminder {
   email: string;
   reminderDay: number;
   isActive: boolean;
-  lastSentAt: string | null;
+  sendPaymentReminder: boolean;
+  sendMonthlyInsight: boolean;
+  lastPaymentReminderSent: string | null;
+  lastMonthlyInsightSent: string | null;
 }
 
 function useMockReminders() {
   const [reminders, setReminders] = useState<Reminder[]>([
-    { id: '1', email: 'dani.prasetya@gmail.com', reminderDay: 25, isActive: true, lastSentAt: '2026-06-25' },
+    {
+      id: '1',
+      email: 'dani.prasetya@gmail.com',
+      reminderDay: 1,
+      isActive: true,
+      sendPaymentReminder: true,
+      sendMonthlyInsight: true,
+      lastPaymentReminderSent: '2026-07-01',
+      lastMonthlyInsightSent: '2026-07-01',
+    },
   ]);
 
   const addReminder = (email: string, day: number) => {
     setReminders((prev) => [
       ...prev,
-      { id: String(Date.now()), email, reminderDay: day, isActive: true, lastSentAt: null },
+      {
+        id: String(Date.now()),
+        email,
+        reminderDay: day,
+        isActive: true,
+        sendPaymentReminder: true,
+        sendMonthlyInsight: true,
+        lastPaymentReminderSent: null,
+        lastMonthlyInsightSent: null,
+      },
     ]);
   };
 
@@ -45,11 +66,17 @@ function useMockReminders() {
     );
   };
 
+  const toggleType = (id: string, type: 'sendPaymentReminder' | 'sendMonthlyInsight') => {
+    setReminders((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, [type]: !r[type] } : r)),
+    );
+  };
+
   const removeReminder = (id: string) => {
     setReminders((prev) => prev.filter((r) => r.id !== id));
   };
 
-  return { reminders, addReminder, toggleReminder, removeReminder };
+  return { reminders, addReminder, toggleReminder, toggleType, removeReminder };
 }
 
 // ============================================================
@@ -57,23 +84,16 @@ function useMockReminders() {
 // ============================================================
 
 function ReminderSection() {
-  const { reminders, addReminder, toggleReminder, removeReminder } = useMockReminders();
+  const { reminders, addReminder, toggleReminder, toggleType, removeReminder } = useMockReminders();
   const [newEmail, setNewEmail] = useState('');
-  const [newDay, setNewDay] = useState(25);
-  const [testStatus, setTestStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
+  const [newDay, setNewDay] = useState(1);
 
   const handleAdd = () => {
     if (newEmail && newDay >= 1 && newDay <= 28) {
       addReminder(newEmail, newDay);
       setNewEmail('');
-      setNewDay(25);
+      setNewDay(1);
     }
-  };
-
-  const handleTestSend = () => {
-    setTestStatus('sending');
-    setTimeout(() => setTestStatus('sent'), 1500);
-    setTimeout(() => setTestStatus('idle'), 3000);
   };
 
   return (
@@ -83,46 +103,97 @@ function ReminderSection() {
         <h3 className="text-base font-semibold text-gray-900">Email Reminder</h3>
       </div>
       <p className="text-sm text-gray-500 mb-4">
-        Konfigurasi pengingat angsuran bulanan via email. Reminder dikirim pada tanggal yang dipilih setiap bulan.
+        Konfigurasi pengingat angsuran dan laporan bulanan via email.
+        Dua jenis email dikirim setiap tanggal yang dipilih:
       </p>
+
+      {/* Email types info */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center gap-2 mb-1">
+            <FileText size={14} className="text-blue-600" />
+            <p className="text-sm font-medium text-blue-900">Pengingat Pembayaran</p>
+          </div>
+          <p className="text-xs text-blue-700">
+            Detail angsuran berikutnya: nominal, jatuh tempo, breakdown pokok/bunga
+          </p>
+        </div>
+        <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+          <div className="flex items-center gap-2 mb-1">
+            <BarChart3 size={14} className="text-emerald-600" />
+            <p className="text-sm font-medium text-emerald-900">Laporan Bulanan</p>
+          </div>
+          <p className="text-xs text-emerald-700">
+            Summary analisa: progress, akumulasi, milestone, rekomendasi strategi
+          </p>
+        </div>
+      </div>
 
       {/* Existing reminders */}
       <div className="space-y-3 mb-6">
         {reminders.map((reminder) => (
           <div
             key={reminder.id}
-            className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+            className="p-4 bg-gray-50 rounded-lg border border-gray-200"
           >
-            <div className="flex items-center gap-3">
-              <button onClick={() => toggleReminder(reminder.id)}>
-                {reminder.isActive ? (
-                  <ToggleRight size={24} className="text-emerald-500" />
-                ) : (
-                  <ToggleLeft size={24} className="text-gray-400" />
-                )}
-              </button>
-              <div>
-                <p className="text-sm font-medium text-gray-900">{reminder.email}</p>
-                <p className="text-xs text-gray-500">
-                  Tanggal {reminder.reminderDay} setiap bulan
-                  {reminder.lastSentAt && ` · Terakhir: ${reminder.lastSentAt}`}
-                </p>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <button onClick={() => toggleReminder(reminder.id)}>
+                  {reminder.isActive ? (
+                    <ToggleRight size={24} className="text-emerald-500" />
+                  ) : (
+                    <ToggleLeft size={24} className="text-gray-400" />
+                  )}
+                </button>
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{reminder.email}</p>
+                  <p className="text-xs text-gray-500">
+                    Tanggal {reminder.reminderDay} setiap bulan
+                  </p>
+                </div>
               </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleTestSend}
-                disabled={testStatus === 'sending'}
-                className="text-xs text-blue-600 hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-50"
-              >
-                {testStatus === 'sending' ? 'Mengirim...' : testStatus === 'sent' ? '✓ Terkirim' : 'Test'}
-              </button>
               <button
                 onClick={() => removeReminder(reminder.id)}
                 className="text-gray-400 hover:text-red-500 p-1"
               >
                 <Trash2 size={14} />
               </button>
+            </div>
+
+            {/* Email type toggles */}
+            <div className="flex gap-4 pl-9">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={reminder.sendPaymentReminder}
+                  onChange={() => toggleType(reminder.id, 'sendPaymentReminder')}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-xs text-gray-600">Pengingat Pembayaran</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={reminder.sendMonthlyInsight}
+                  onChange={() => toggleType(reminder.id, 'sendMonthlyInsight')}
+                  className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                <span className="text-xs text-gray-600">Laporan Bulanan</span>
+              </label>
+            </div>
+
+            {/* Last sent info */}
+            <div className="flex gap-4 pl-9 mt-2">
+              {reminder.lastPaymentReminderSent && (
+                <p className="text-[10px] text-gray-400">
+                  Pengingat terakhir: {reminder.lastPaymentReminderSent}
+                </p>
+              )}
+              {reminder.lastMonthlyInsightSent && (
+                <p className="text-[10px] text-gray-400">
+                  Laporan terakhir: {reminder.lastMonthlyInsightSent}
+                </p>
+              )}
             </div>
           </div>
         ))}
@@ -183,7 +254,7 @@ function LoanInfoSection() {
         <h3 className="text-base font-semibold text-gray-900">Data KPR</h3>
       </div>
       <p className="text-sm text-gray-500 mb-4">
-        Data KPR dikelola melalui CMS admin panel. Klik tombol di bawah untuk membuka admin.
+        Data KPR dikelola melalui CMS admin panel.
       </p>
 
       <div className="grid grid-cols-2 gap-4 mb-4">
@@ -218,11 +289,6 @@ function LoanInfoSection() {
 }
 
 function ExportSection() {
-  const handleExportCSV = () => {
-    // TODO: implement CSV export
-    alert('CSV export akan tersedia setelah CMS terkoneksi');
-  };
-
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6">
       <div className="flex items-center gap-2 mb-4">
@@ -230,20 +296,14 @@ function ExportSection() {
         <h3 className="text-base font-semibold text-gray-900">Export Data</h3>
       </div>
       <p className="text-sm text-gray-500 mb-4">
-        Export data KPR untuk analisa di spreadsheet atau sebagai backup.
+        Export data KPR untuk analisa di spreadsheet.
       </p>
       <div className="flex gap-3">
-        <button
-          onClick={handleExportCSV}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors"
-        >
+        <button className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors">
           <Download size={14} />
           Export Tabel Angsuran (CSV)
         </button>
-        <button
-          onClick={handleExportCSV}
-          className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors"
-        >
+        <button className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors">
           <Download size={14} />
           Export Laporan Lengkap (CSV)
         </button>
@@ -277,6 +337,10 @@ function SystemInfoSection() {
           <span className="text-gray-500">Domain</span>
           <span className="font-mono">monetalis.danipras.dev</span>
         </div>
+        <div className="flex justify-between">
+          <span className="text-gray-500">SMTP</span>
+          <span className="font-mono">Google SMTP (Gmail)</span>
+        </div>
       </div>
     </div>
   );
@@ -289,13 +353,11 @@ function SystemInfoSection() {
 function SettingsPage() {
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
         <p className="text-sm text-gray-500 mt-1">Konfigurasi aplikasi dan email reminder</p>
       </div>
 
-      {/* Sections */}
       <ReminderSection />
       <LoanInfoSection />
       <ExportSection />

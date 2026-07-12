@@ -236,10 +236,17 @@ export async function fetchInsights(loanId: string) {
   return cmsFetch<FinancialInsights>(`/api/kpr/insights?loanId=${loanId}`);
 }
 
-export async function sendReminder(reminderId: string) {
-  return cmsFetch<{ success: boolean }>('/api/kpr/send-reminder', {
+export async function sendReminder(reminderId: string, loanId: string) {
+  return cmsFetch<{ success: boolean }>('/api/kpr/send-payment-reminder', {
     method: 'POST',
-    body: JSON.stringify({ reminderId }),
+    body: JSON.stringify({ reminderId, loanId }),
+  });
+}
+
+export async function sendMonthlyInsight(reminderId: string, loanId: string) {
+  return cmsFetch<{ success: boolean }>('/api/kpr/send-monthly-insight', {
+    method: 'POST',
+    body: JSON.stringify({ reminderId, loanId }),
   });
 }
 

@@ -265,3 +265,82 @@ export function simulateExtraPayment(monthlyExtra: number, startMonth: number) {
     interestSaved: totalInterestOriginal - totalInterestNew,
   };
 }
+
+// ============================================================
+// Savings Simulation
+// ============================================================
+
+export interface SavingsSimulationResult {
+  monthlySavings: number;
+  monthsToGoal: number;
+  optimalMonth: number;
+  optimalDate: string;
+  totalSaved: number;
+  kprBalance: number;
+  penaltyAmount: number;
+  savingsHistory: Array<{
+    month: number;
+    cumulativeSavings: number;
+    kprBalance: number;
+    needed: number;
+    canPayoff: boolean;
+  }>;
+}
+
+export function simulateSavings(
+  monthlyIncome: number,
+  monthlyExpenses: number,
+  currentSavings: number,
+): SavingsSimulationResult | { error: string } {
+  const status = getCurrentStatus();
+  const schedule = generateMockSchedule();
+
+  const monthlyKPR = status.currentInstallment;
+  const monthlySavings = monthlyIncome - monthlyExpenses - monthlyKPR;
+
+  if (monthlySavings <= 0) {
+    return { error: 'Pengeluaran + angsuran melebihi pemasukan. Tidak ada sisa untuk ditabung.' };
+  }
+
+  let savings = currentSavings;
+  const savingsHistory: SavingsSimulationResult['savingsHistory'] = [];
+
+  for (let m = 1; m <= 240; m++) {
+    savings += monthlySavings;
+
+    const scheduleIndex = status.currentMonth + m;
+    if (scheduleIndex >= schedule.length) break;
+
+    const entry = schedule[scheduleIndex];
+    const balance = entry.outstandingBalance;
+    const isAfterMinTenor = scheduleIndex >= MOCK_LOAN.minTenorMonths;
+    const penaltyRate = isAfterMinTenor ? MOCK_LOAN.penaltyAfterMinTenor : MOCK_LOAN.penaltyBeforeMinTenor;
+    const penalty = Math.round(balance * penaltyRate / 100);
+    const needed = balance + penalty;
+    const canPayoff = savings >= needed;
+
+    savingsHistory.push({
+      month: m,
+      cumulativeSavings: savings,
+      kprBalance: balance,
+      needed,
+      canPayoff,
+    });
+
+    if (canPayoff) {
+      const optimalDate = addMonthsToDate(FIRST_PAYMENT, scheduleIndex);
+      return {
+        monthlySavings,
+        monthsToGoal: m,
+        optimalMonth: scheduleIndex,
+        optimalDate,
+        totalSaved: savings,
+        kprBalance: balance,
+        penaltyAmount: penalty,
+        savingsHistory,
+      };
+    }
+  }
+
+  return { error: 'Tidak bisa mengumpulkan cukup dana dalam sisa tenor.' };
+}
