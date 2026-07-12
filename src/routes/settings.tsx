@@ -321,42 +321,6 @@ function ReminderSection() {
                 </label>
               </div>
 
-              {/* Test email buttons */}
-              <div className="flex gap-2 pl-9 mb-2">
-                <button
-                  onClick={() => handleTestEmail(reminder.id, 'payment')}
-                  disabled={paymentStatus === 'sending' || !reminder.sendPaymentReminder}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100"
-                >
-                  {paymentStatus === 'sending' ? (
-                    <Loader2 size={12} className="animate-spin" />
-                  ) : paymentStatus === 'sent' ? (
-                    <CheckCircle size={12} />
-                  ) : paymentStatus === 'error' ? (
-                    <AlertCircle size={12} />
-                  ) : (
-                    <Send size={12} />
-                  )}
-                  {paymentStatus === 'sending' ? 'Mengirim...' : paymentStatus === 'sent' ? 'Terkirim!' : paymentStatus === 'error' ? 'Gagal' : 'Test Pengingat'}
-                </button>
-                <button
-                  onClick={() => handleTestEmail(reminder.id, 'insight')}
-                  disabled={insightStatus === 'sending' || !reminder.sendMonthlyInsight}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
-                >
-                  {insightStatus === 'sending' ? (
-                    <Loader2 size={12} className="animate-spin" />
-                  ) : insightStatus === 'sent' ? (
-                    <CheckCircle size={12} />
-                  ) : insightStatus === 'error' ? (
-                    <AlertCircle size={12} />
-                  ) : (
-                    <Send size={12} />
-                  )}
-                  {insightStatus === 'sending' ? 'Mengirim...' : insightStatus === 'sent' ? 'Terkirim!' : insightStatus === 'error' ? 'Gagal' : 'Test Laporan'}
-                </button>
-              </div>
-
               {/* Last sent info */}
               <div className="flex gap-4 pl-9">
                 {reminder.lastPaymentReminderSent && (
@@ -425,7 +389,28 @@ function ReminderSection() {
 function UsersSection() {
   const [users, setUsers] = useState<Array<{ id: string; email: string; name: string; role: string; isActive: boolean }>>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [testStatus, setTestStatus] = useState<Record<string, string>>({});
   const loanId = getLoanId();
+
+  const handleTestUserEmail = async (email: string, type: 'payment' | 'insight') => {
+    const key = `user-${email}-${type}`;
+    setTestStatus((prev) => ({ ...prev, [key]: 'sending' }));
+    try {
+      const token = localStorage.getItem('monetalis_token');
+      const endpoint = type === 'payment' ? '/api/kpr/send-payment-reminder-test' : '/api/kpr/send-monthly-insight-test';
+      const res = await fetch(`${CMS_URL}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ email, loanId }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      setTestStatus((prev) => ({ ...prev, [key]: 'sent' }));
+      setTimeout(() => setTestStatus((prev) => ({ ...prev, [key]: '' })), 3000);
+    } catch {
+      setTestStatus((prev) => ({ ...prev, [key]: 'error' }));
+      setTimeout(() => setTestStatus((prev) => ({ ...prev, [key]: '' })), 5000);
+    }
+  };
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -473,29 +458,57 @@ function UsersSection() {
         <p className="text-sm text-gray-400 text-center py-4">Tidak ada user ditemukan.</p>
       ) : (
         <div className="space-y-2">
-          {users.map((u) => (
-            <div key={u.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <div className="flex items-center gap-3">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${u.isActive ? 'bg-emerald-500' : 'bg-gray-400'}`}>
-                  {u.name.charAt(0).toUpperCase()}
+          {users.map((u) => {
+            const paymentKey = `user-${u.id}-payment`;
+            const insightKey = `user-${u.id}-insight`;
+            const paymentSt = testStatus[paymentKey];
+            const insightSt = testStatus[insightKey];
+
+            return (
+              <div key={u.id} className="p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${u.isActive ? 'bg-emerald-500' : 'bg-gray-400'}`}>
+                      {u.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{u.name}</p>
+                      <p className="text-xs text-gray-500">{u.email}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${u.role === 'admin' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
+                      {u.role}
+                    </span>
+                    {!u.isActive && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-600">
+                        Nonaktif
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm font-medium text-gray-900">{u.name}</p>
-                  <p className="text-xs text-gray-500">{u.email}</p>
+                {/* Test email buttons per user */}
+                <div className="flex gap-2 mt-2 pl-11">
+                  <button
+                    onClick={() => handleTestUserEmail(u.email, 'payment')}
+                    disabled={paymentSt === 'sending'}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100"
+                  >
+                    {paymentSt === 'sending' ? <Loader2 size={12} className="animate-spin" /> : paymentSt === 'sent' ? <CheckCircle size={12} /> : paymentSt === 'error' ? <AlertCircle size={12} /> : <Send size={12} />}
+                    {paymentSt === 'sending' ? 'Mengirim...' : paymentSt === 'sent' ? 'Terkirim!' : paymentSt === 'error' ? 'Gagal' : 'Test Pengingat'}
+                  </button>
+                  <button
+                    onClick={() => handleTestUserEmail(u.email, 'insight')}
+                    disabled={insightSt === 'sending'}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
+                  >
+                    {insightSt === 'sending' ? <Loader2 size={12} className="animate-spin" /> : insightSt === 'sent' ? <CheckCircle size={12} /> : insightSt === 'error' ? <AlertCircle size={12} /> : <Send size={12} />}
+                    {insightSt === 'sending' ? 'Mengirim...' : insightSt === 'sent' ? 'Terkirim!' : insightSt === 'error' ? 'Gagal' : 'Test Laporan'}
+                  </button>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className={`text-xs px-2 py-0.5 rounded-full ${u.role === 'admin' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
-                  {u.role}
-                </span>
-                {!u.isActive && (
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-600">
-                    Nonaktif
-                  </span>
-                )}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
