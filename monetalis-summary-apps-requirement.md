@@ -2,92 +2,80 @@
 
 ## Requirement Overview
 
-### Problem
-Monitoring KPR dengan struktur bunga berjenjang (stepped fixed rate) membutuhkan tool yang bisa merangkum data keuangan, mensimulasikan skenario pembayaran, dan mengirim reminder otomatis.
-
-### Solution
-Web application personal finance dashboard yang informatif dan profesional.
+Monitoring KPR dengan struktur bunga berjenjang (stepped fixed rate) — dashboard keuangan, simulasi pembayaran, reminder email.
 
 ---
 
-## Functional Requirements
+## Architecture Decision
 
-### 1. Dashboard Summary
-- Merender semua data summary keuangan KPR
-- Sisa pokok, total bunga dibayar, progress pembayaran
-- Angsuran bulan ini dan jadwal berikutnya
-- Fase bunga aktif dan countdown ke fase berikutnya
-- Key metrics: total cost, rasio bunga/pokok, estimasi sisa tenor
+> **Payload CMS 3.x sebagai backend** — tidak perlu API terpisah.
+> Payload auto-generates REST & GraphQL API, built-in auth, admin panel.
+> Mengikuti pattern yang sudah established di `revamp-portfolio`.
 
-### 2. Tabel Angsuran Interaktif
-- 240 baris data angsuran dengan TanStack Table
-- Sort, filter, search, column visibility
-- Tandai pembayaran sudah dilakukan
-- Visualisasi grafik (area chart, line chart)
-
-### 3. Payment Simulator
-- **Early Payoff**: Hitung penalti, total cost, hemat vs tenor penuh
-- **Extra Payment**: Simulasi bayar ekstra per bulan, hitung tenor baru
-- **Scenario Comparison**: Side-by-side perbandingan skenario
-- Break-even analysis otomatis
-
-### 4. Financial Insights
-- Analisa opportunity cost (KPR vs investasi)
-- Milestone alerts (perubahan bunga, pencapaian %)
-- Rekomendasi otomatis kapan waktu terbaik melunasi
-
-### 5. Email Reminder
-- Konfigurasi email penerima dan hari reminder
-- Email template profesional dengan data angsuran bulan ini
-- Test email button
-- Log pengiriman
-
-### 6. Settings
-- Edit data KPR dan rate tiers
-- Konfigurasi reminder
-- Export data (CSV)
+```
+Browser → [web:3000] → Payload REST API → [MongoDB Atlas]
+                            ↘ [Google SMTP]
+```
 
 ---
 
-## Technical Requirements
+## Stack
 
-### Stack
-- **Frontend**: React + Vite + TanStack (Router, Query, Table) + TailwindCSS + shadcn/ui
-- **Backend**: Hono (Node.js API)
-- **Database**: PostgreSQL (existing K8s)
-- **Email**: Nodemailer via Google SMTP
-- **Monorepo**: Turborepo
-- **Deploy**: Docker + K8s
+| Layer | Technology |
+|-------|-----------|
+| Frontend | React + Vite + TanStack (Router + Query + Table) + TailwindCSS + shadcn/ui |
+| Backend | Payload CMS 3.x (Next.js 15) |
+| Database | MongoDB Atlas (shared cluster, DB: monetalis) |
+| Auth | Payload built-in JWT + API key |
+| Email | Nodemailer via Google SMTP |
+| Monorepo | Turborepo + pnpm |
+| Deploy | Docker + K8s + Traefik |
+| Domain | monetalis.danipras.dev |
 
-### Architecture
-```
-Browser → [web:3000] → [api:4000] → [PostgreSQL:5432]
-                                    → [Google SMTP]
-```
+---
 
-### Data Model
-- `kpr_loans` - Metadata pinjaman
-- `kpr_rate_tiers` - Tier suku bunga
-- `kpr_schedule` - Jadwal angsuran 240 bulan
-- `kpr_extra_payments` - Pembayaran ekstra
-- `kpr_reminders` - Konfigurasi email reminder
-- `kpr_simulations` - Skenario simulasi tersimpan
+## Features
 
-### Deployment
-- 2 containers: web (nginx + static) + api (Node.js)
-- K8s: Deployment + Service + Ingress + ConfigMap + Secret
-- CronJob untuk daily reminder check
+1. **Dashboard** — Summary KPR, progress, key metrics, charts
+2. **Tabel Angsuran** — 240 bulan, TanStack Table, toggle is_paid
+3. **Simulator** — Early payoff, extra payment, scenario comparison
+4. **Insights** — Opportunity cost, milestones, rekomendasi
+5. **Email Reminder** — Konfigurasi, template, cron job
+6. **Settings** — Edit data, rate tiers, export
+
+---
+
+## Data Model (Payload Collections)
+
+- `kpr-loans` — Metadata pinjaman
+- `kpr-rate-tiers` — Tier suku bunga berjenjang
+- `kpr-schedule` — Jadwal angsuran 240 bulan (seeded from CSV)
+- `kpr-extra-payments` — Log pembayaran ekstra
+- `kpr-reminders` — Konfigurasi email reminder
+- `kpr-simulations` — Skenario simulasi tersimpan
+
+---
+
+## Custom Endpoints
+
+- `GET /api/kpr/status` — Status KPR saat ini (computed)
+- `POST /api/kpr/simulate/early-payoff` — Simulasi pelunasan dipercepat
+- `POST /api/kpr/simulate/extra-payment` — Simulasi bayar ekstra
+- `GET /api/kpr/insights` — Financial insights
+- `POST /api/kpr/send-reminder` — Trigger email reminder
+- `POST /api/kpr/seed` — Seed data dari CSV
 
 ---
 
 ## Implementation Phases
 
-| Phase | Scope | Est. Effort |
-|-------|-------|-------------|
-| 1. Foundation | Monorepo, DB, API, Dashboard, Tabel | 2-3 days |
-| 2. Simulator | Early payoff, extra payment, charts | 1-2 days |
-| 3. Insights & Email | Insights engine, email reminders | 1-2 days |
-| 4. Polish & Deploy | Responsive, dark mode, Docker, K8s | 1-2 days |
+| Phase | Scope |
+|-------|-------|
+| 1. Foundation | Monorepo, Payload CMS, collections, seed, auth, dashboard |
+| 2. Core | Tabel Angsuran, charts, payment tracking, status endpoint |
+| 3. Simulator | Early payoff, extra payment, comparison |
+| 4. Insights & Email | Insights engine, milestones, email reminders |
+| 5. Deploy | Docker, K8s, Traefik, CI/CD |
 
 ---
 

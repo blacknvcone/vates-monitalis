@@ -2,10 +2,9 @@
 
 ## Product Requirements Document (PRD)
 
-**Version:** 1.0
+**Version:** 2.0 (Revised)
 **Date:** 12 Juli 2026
-**Author:** Engineering Team
-**Status:** Draft
+**Status:** Ready for Implementation
 
 ---
 
@@ -13,738 +12,546 @@
 
 ### 1.1 Problem Statement
 
-Sebagai pemilik KPR dengan struktur bunga berjenjang (stepped fixed rate), diperlukan sebuah tool yang bisa:
-- Merangkum seluruh data keuangan KPR dalam satu dashboard
-- Mensimulasikan skenario pembayaran (termasuk pelunasan dipercepat)
-- Mengirim reminder email sebelum jatuh tempo angsuran
-- Memberikan insight layaknya seorang financial analyst berpengalaman
+Monitoring KPR dengan struktur bunga berjenjang (stepped fixed rate) membutuhkan tool yang bisa merangkum data keuangan, mensimulasikan skenario pembayaran, dan mengirim reminder otomatis.
 
-### 1.2 Product Vision
+### 1.2 Solution
 
-Sebuah web application personal finance tool yang informatif, profesional, dan actionable untuk monitoring dan optimasi KPR.
+Web application personal finance dashboard:
+- **Frontend**: React SPA dengan TanStack (Router + Query + Table)
+- **Backend**: Payload CMS 3.x (REST API + Auth + Admin Panel)
+- **Database**: MongoDB (shared cluster dengan portfolio CMS, database terpisah)
+- **Email**: Nodemailer via Google SMTP
 
-### 1.3 Target User
+### 1.3 Key Architecture Decision
 
-Single-user (personal tool) dengan opsi扩展 ke multi-user di masa depan.
-
----
-
-## 2. Tech Stack
-
-| Layer | Technology | Justification |
-|-------|-----------|---------------|
-| **Frontend Framework** | React 19 + Vite | Fast dev, optimal build |
-| **Routing** | TanStack Router | Type-safe file-based routing |
-| **Data Fetching** | TanStack Query | Caching, background refetch |
-| **Data Tables** | TanStack Table | Powerful headless table |
-| **Styling** | TailwindCSS 4 + shadcn/ui | Rapid UI, consistent design |
-| **Charts** | Recharts / Nivo | Financial data visualization |
-| **Backend** | Hono (Node.js) | Ultra-lightweight, edge-ready API |
-| **ORM** | Drizzle ORM | Type-safe, lightweight SQL |
-| **Database** | PostgreSQL | Relational data, already in K8s |
-| **Email** | Nodemailer (Google SMTP) | Reliable, no extra service |
-| **Validation** | Zod | Shared schema frontend + backend |
-| **Monorepo** | Turborepo | Fast builds, shared packages |
-| **Container** | Docker + K8s | Deployment target |
+> **Payload CMS sebagai backend** — menghilangkan kebutuhan untuk membangun API terpisah (Hono/Express).
+> Payload auto-generates REST & GraphQL API untuk semua collections, plus built-in auth.
+> Mengikuti pattern yang sudah established di `revamp-portfolio` monorepo.
 
 ---
 
-## 3. Architecture
+## 2. Architecture
 
 ```
-                    ┌──────────────────┐
-                    │   K8s Cluster    │
-                    │                  │
-  Browser ──────►  │  ┌────────────┐  │
-                    │  │  web (SPA) │  │  ← Vite static build, nginx
-                    │  │  port 3000 │  │
-                    │  └─────┬──────┘  │
-                    │        │ API calls│
-                    │  ┌─────▼──────┐  │
-                    │  │  api (Hono)│  │  ← Node.js runtime
-                    │  │  port 4000 │  │
-                    │  └──┬─────┬───┘  │
-                    │     │     │      │
-                    │  ┌──▼──┐ ┌▼────┐ │
-                    │  │ PG  │ │SMTP │ │
-                    │  │5432 │ │Google│ │
-                    │  └─────┘ └─────┘ │
-                    └──────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  K8s Cluster                                                 │
+│                                                              │
+│  ┌─────────────────┐     ┌──────────────────────┐           │
+│  │  web (SPA)       │     │  cms (Payload 3.x)   │           │
+│  │  Vite + React    │────►│  Next.js 15          │           │
+│  │  TanStack        │ API │  REST + GraphQL      │           │
+│  │  port 3000       │     │  Auth (JWT + API Key)│           │
+│  │                  │     │  Admin Panel /admin  │           │
+│  │  nginx           │     │  port 3001           │           │
+│  └─────────────────┘     └──────┬───────┬───────┘           │
+│                                  │       │                   │
+│                           ┌──────▼──┐ ┌──▼────────┐         │
+│                           │ MongoDB │ │ Google    │         │
+│                           │ Atlas   │ │ SMTP      │         │
+│                           └─────────┘ └───────────┘         │
+│                                                              │
+│  Traefik IngressRoute:                                       │
+│    monetalis.danipras.dev      → web:3000                    │
+│    monetalis.danipras.dev/api  → cms:3001                    │
+│    monetalis.danipras.dev/admin → cms:3001                   │
+└──────────────────────────────────────────────────────────────┘
 ```
 
-### 3.1 Monorepo Structure
+### 2.1 Why Payload CMS as Backend?
+
+| Aspect | Payload CMS | Custom API (Hono) |
+|--------|------------|-------------------|
+| Auth | Built-in (JWT, API keys) | Harus build sendiri |
+| CRUD API | Auto-generated | Manual |
+| Admin Panel | Gratis (React admin) | Harus build sendiri |
+| Type Safety | Auto-generate types | Manual |
+| Deployment | Pattern sudah ada | Pattern baru |
+| Effort | ~50% lebih sedikit | Full custom |
+
+### 2.2 Monorepo Structure
 
 ```
 vates-monitalis/
 ├── apps/
-│   ├── web/                    # Frontend SPA
+│   ├── web/                          # Frontend SPA
 │   │   ├── src/
-│   │   │   ├── routes/         # TanStack Router file-based routes
-│   │   │   ├── components/     # UI components
-│   │   │   ├── features/       # Feature modules
-│   │   │   │   ├── dashboard/  # Dashboard feature
-│   │   │   │   ├── simulator/  # Payment simulator
-│   │   │   │   ├── schedule/   # Installment schedule
-│   │   │   │   └── settings/   # Settings & reminders
-│   │   │   ├── hooks/          # Custom hooks
-│   │   │   ├── lib/            # Utilities, API client
-│   │   │   └── styles/         # Global styles
+│   │   │   ├── routes/               # TanStack Router file-based routes
+│   │   │   │   ├── __root.tsx
+│   │   │   │   ├── index.tsx         # Dashboard
+│   │   │   │   ├── schedule.tsx      # Tabel Angsuran
+│   │   │   │   ├── simulator.tsx     # Payment Simulator
+│   │   │   │   ├── insights.tsx      # Financial Insights
+│   │   │   │   └── settings.tsx      # Settings
+│   │   │   ├── components/
+│   │   │   │   ├── ui/               # shadcn/ui components
+│   │   │   │   ├── dashboard/        # Dashboard components
+│   │   │   │   ├── schedule/         # Table components
+│   │   │   │   ├── simulator/        # Simulator components
+│   │   │   │   └── insights/         # Insight components
+│   │   │   ├── lib/
+│   │   │   │   ├── api.ts            # Payload API client
+│   │   │   │   ├── auth.ts           # Auth helpers
+│   │   │   │   └── utils.ts          # Utilities
+│   │   │   ├── hooks/                # Custom hooks
+│   │   │   └── styles/
 │   │   ├── Dockerfile
+│   │   ├── vite.config.ts
 │   │   └── package.json
 │   │
-│   └── api/                    # Backend API
+│   └── cms/                          # Payload CMS (backend)
 │       ├── src/
-│       │   ├── routes/         # Hono route handlers
-│       │   ├── services/       # Business logic
-│       │   │   ├── kpr.ts      # KPR calculation engine
-│       │   │   ├── simulator.ts # Simulation logic
-│       │   │   └── email.ts    # Email service
-│       │   ├── db/
-│       │   │   ├── schema.ts   # Drizzle schema
-│       │   │   ├── migrations/ # DB migrations
-│       │   │   └── seed.ts     # Seed data (from CSV)
-│       │   ├── jobs/           # Background jobs
-│       │   │   └── reminder.ts # Cron job for email reminders
-│       │   └── index.ts        # Hono app entry
+│       │   ├── collections/
+│       │   │   ├── Users.ts          # Auth users (existing pattern)
+│       │   │   ├── KprLoans.ts       # KPR loan metadata
+│       │   │   ├── KprRateTiers.ts   # Interest rate tiers
+│       │   │   ├── KprSchedule.ts    # Amortization schedule (240 rows)
+│       │   │   ├── KprExtraPayments.ts # Extra payments log
+│       │   │   ├── KprReminders.ts   # Email reminder config
+│       │   │   └── KprSimulations.ts # Saved simulations
+│       │   ├── endpoints/
+│       │   │   ├── simulate.ts       # Custom: run simulations
+│       │   │   ├── insights.ts       # Custom: financial insights
+│       │   │   ├── status.ts         # Custom: current KPR status
+│       │   │   └── send-reminder.ts  # Custom: trigger email
+│       │   ├── hooks/                # Collection hooks
+│       │   ├── jobs/
+│       │   │   └── reminder-cron.ts  # Scheduled email reminders
+│       │   ├── payload.config.ts
+│       │   └── app/                  # Next.js app dir (admin)
 │       ├── Dockerfile
+│       ├── infra/                    # K8s manifests
+│       │   ├── deployment.yaml
+│       │   ├── service.yaml
+│       │   ├── ingressroute.yaml
+│       │   └── namespace.yaml
+│       ├── .env.example
 │       └── package.json
 │
 ├── packages/
-│   └── shared/                 # Shared code
-│       ├── src/
-│       │   ├── types/          # TypeScript types
-│       │   ├── schemas/        # Zod schemas
-│       │   └── utils/          # Shared utilities (currency format, etc.)
-│       └── package.json
+│   └── shared/                       # Shared types & utils
+│       └── src/
+│           ├── types.ts              # TypeScript interfaces
+│           ├── schemas.ts            # Zod schemas
+│           └── utils.ts              # Currency format, date helpers
 │
-├── k8s/                        # Kubernetes manifests
-│   ├── namespace.yaml
-│   ├── web.yaml
-│   ├── api.yaml
-│   ├── postgres.yaml (reference existing)
-│   └── secrets.yaml
-│
+├── docker-compose.yaml               # Local dev
 ├── turbo.json
-├── docker-compose.yaml         # Local dev
+├── pnpm-workspace.yaml
 ├── package.json
 └── README.md
 ```
 
 ---
 
-## 4. Database Schema
+## 3. Payload CMS Collections (Data Model)
 
-### 4.1 Tables
+### 3.1 Users (built-in, same pattern as portfolio)
 
-```sql
--- KPR loan metadata (single row, the main loan)
-CREATE TABLE kpr_loans (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    borrower_name   TEXT NOT NULL,
-    co_borrower     TEXT,
-    bank_name       TEXT NOT NULL,
-    branch          TEXT,
-    loan_amount     BIGINT NOT NULL,           -- 415000000
-    house_price     BIGINT NOT NULL,           -- 539000000
-    down_payment    BIGINT NOT NULL,           -- 124000000
-    tenor_months    INT NOT NULL,              -- 240
-    first_payment   DATE NOT NULL,             -- 2023-11-01
-    offering_letter TEXT,                      -- reference number
-    property_address TEXT,
-    certificate_no  TEXT,
-    created_at      TIMESTAMPTZ DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Interest rate tiers
-CREATE TABLE kpr_rate_tiers (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    loan_id     UUID REFERENCES kpr_loans(id),
-    tier_order  INT NOT NULL,                  -- 1, 2, 3
-    start_month INT NOT NULL,                  -- 1, 37, 73
-    end_month   INT NOT NULL,                  -- 36, 72, 240
-    rate_pct    DECIMAL(5,2) NOT NULL,         -- 4.75, 8.00, 10.25
-    installment BIGINT NOT NULL                -- 2681900, 3367400, 3815600
-);
-
--- Full amortization schedule (from CSV, pre-computed)
-CREATE TABLE kpr_schedule (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    loan_id         UUID REFERENCES kpr_loans(id),
-    month_number    INT NOT NULL,              -- 1-240
-    calendar_date   DATE NOT NULL,             -- 2023-11-01
-    principal_portion   BIGINT NOT NULL,
-    interest_portion    BIGINT NOT NULL,
-    total_installment   BIGINT NOT NULL,
-    outstanding_balance BIGINT NOT NULL,
-    interest_rate   DECIMAL(5,2) NOT NULL,
-    is_paid         BOOLEAN DEFAULT FALSE,
-    paid_date       DATE,
-    paid_amount     BIGINT,
-    UNIQUE(loan_id, month_number)
-);
-
--- Extra payments / partial prepayments
-CREATE TABLE kpr_extra_payments (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    loan_id         UUID REFERENCES kpr_loans(id),
-    payment_date    DATE NOT NULL,
-    amount          BIGINT NOT NULL,
-    note            TEXT,
-    created_at      TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Email reminder configuration
-CREATE TABLE kpr_reminders (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    loan_id         UUID REFERENCES kpr_loans(id),
-    email           TEXT NOT NULL,
-    reminder_day    INT NOT NULL,              -- day of month (e.g., 25 = 25th)
-    is_active       BOOLEAN DEFAULT TRUE,
-    last_sent_at    TIMESTAMPTZ,
-    created_at      TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Simulation snapshots (saved simulations)
-CREATE TABLE kpr_simulations (
-    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    loan_id         UUID REFERENCES kpr_loans(id),
-    name            TEXT NOT NULL,             -- "Lunasi Okt 2026", "Bayar ekstra 5jt/bln"
-    scenario_type   TEXT NOT NULL,             -- 'early_payoff', 'extra_payment', 'refinance'
-    params          JSONB NOT NULL,            -- scenario parameters
-    results         JSONB NOT NULL,            -- computed results
-    created_at      TIMESTAMPTZ DEFAULT NOW()
-);
+```typescript
+// Same as revamp-portfolio/apps/cms/src/collections/Users.ts
+// Auth with JWT + API key support
 ```
 
-### 4.2 Seed Data
+### 3.2 KprLoans
 
-Data dari `KPR-Tabel-Angsuran.csv` akan di-seed ke tabel `kpr_schedule` saat pertama kali deploy.
+```typescript
+export const KprLoans: CollectionConfig = {
+  slug: 'kpr-loans',
+  admin: { useAsTitle: 'borrowerName', group: 'KPR' },
+  fields: [
+    { name: 'borrowerName', type: 'text', required: true },
+    { name: 'coBorrower', type: 'text' },
+    { name: 'bankName', type: 'text', required: true, defaultValue: 'BRI' },
+    { name: 'branch', type: 'text' },
+    { name: 'loanAmount', type: 'number', required: true, min: 0 },
+    { name: 'housePrice', type: 'number', required: true },
+    { name: 'downPayment', type: 'number', required: true },
+    { name: 'tenorMonths', type: 'number', required: true, defaultValue: 240 },
+    { name: 'firstPayment', type: 'date', required: true },
+    { name: 'offeringLetterRef', type: 'text' },
+    { name: 'propertyAddress', type: 'textarea' },
+    { name: 'certificateNo', type: 'text' },
+    { name: 'collateralValue', type: 'number' },
+    // Penalty rules
+    { name: 'penaltyBeforeMinTenor', type: 'number', defaultValue: 10 }, // %
+    { name: 'penaltyAfterMinTenor', type: 'number', defaultValue: 2.5 }, // %
+    { name: 'minTenorMonths', type: 'number', defaultValue: 36 },
+    { name: 'minPartialPrepayment', type: 'number', defaultValue: 6 }, // x angsuran
+  ],
+};
+```
+
+### 3.3 KprRateTiers
+
+```typescript
+export const KprRateTiers: CollectionConfig = {
+  slug: 'kpr-rate-tiers',
+  admin: { group: 'KPR' },
+  fields: [
+    { name: 'loan', type: 'relationship', relationTo: 'kpr-loans', required: true },
+    { name: 'tierOrder', type: 'number', required: true },
+    { name: 'startMonth', type: 'number', required: true },
+    { name: 'endMonth', type: 'number', required: true },
+    { name: 'ratePct', type: 'number', required: true }, // 4.75, 8.00, 10.25
+    { name: 'installment', type: 'number', required: true }, // 2681900, 3367400, 3815600
+  ],
+};
+```
+
+### 3.4 KprSchedule
+
+```typescript
+export const KprSchedule: CollectionConfig = {
+  slug: 'kpr-schedule',
+  admin: { group: 'KPR' },
+  fields: [
+    { name: 'loan', type: 'relationship', relationTo: 'kpr-loans', required: true },
+    { name: 'monthNumber', type: 'number', required: true },
+    { name: 'calendarDate', type: 'date', required: true },
+    { name: 'principalPortion', type: 'number', required: true },
+    { name: 'interestPortion', type: 'number', required: true },
+    { name: 'totalInstallment', type: 'number', required: true },
+    { name: 'outstandingBalance', type: 'number', required: true },
+    { name: 'interestRate', type: 'number', required: true },
+    { name: 'isPaid', type: 'checkbox', defaultValue: false },
+    { name: 'paidDate', type: 'date' },
+    { name: 'paidAmount', type: 'number' },
+    { name: 'notes', type: 'textarea' },
+  ],
+};
+```
+
+### 3.5 KprExtraPayments
+
+```typescript
+export const KprExtraPayments: CollectionConfig = {
+  slug: 'kpr-extra-payments',
+  admin: { group: 'KPR' },
+  fields: [
+    { name: 'loan', type: 'relationship', relationTo: 'kpr-loans', required: true },
+    { name: 'paymentDate', type: 'date', required: true },
+    { name: 'amount', type: 'number', required: true },
+    { name: 'note', type: 'text' },
+  ],
+};
+```
+
+### 3.6 KprReminders
+
+```typescript
+export const KprReminders: CollectionConfig = {
+  slug: 'kpr-reminders',
+  admin: { group: 'KPR' },
+  fields: [
+    { name: 'loan', type: 'relationship', relationTo: 'kpr-loans', required: true },
+    { name: 'email', type: 'email', required: true },
+    { name: 'reminderDay', type: 'number', required: true, min: 1, max: 28 },
+    { name: 'isActive', type: 'checkbox', defaultValue: true },
+    { name: 'lastSentAt', type: 'date' },
+  ],
+};
+```
+
+### 3.7 KprSimulations
+
+```typescript
+export const KprSimulations: CollectionConfig = {
+  slug: 'kpr-simulations',
+  admin: { group: 'KPR' },
+  fields: [
+    { name: 'loan', type: 'relationship', relationTo: 'kpr-loans', required: true },
+    { name: 'name', type: 'text', required: true },
+    { name: 'scenarioType', type: 'select', options: [
+      { label: 'Early Full Payoff', value: 'early_payoff' },
+      { label: 'Extra Payment', value: 'extra_payment' },
+      { label: 'Refinance', value: 'refinance' },
+    ]},
+    { name: 'params', type: 'json', required: true },
+    { name: 'results', type: 'json', required: true },
+  ],
+};
+```
+
+---
+
+## 4. Custom Endpoints (Payload Endpoints API)
+
+Payload CMS mendukung custom endpoints via `endpoints` config di `payload.config.ts`:
+
+```typescript
+// apps/cms/src/payload.config.ts
+export default buildConfig({
+  // ... existing config
+  endpoints: [
+    // Current KPR status (computed)
+    {
+      path: '/kpr/status',
+      method: 'get',
+      handler: async (req) => { /* ... */ },
+    },
+    // Run simulation
+    {
+      path: '/kpr/simulate/early-payoff',
+      method: 'post',
+      handler: async (req) => { /* ... */ },
+    },
+    {
+      path: '/kpr/simulate/extra-payment',
+      method: 'post',
+      handler: async (req) => { /* ... */ },
+    },
+    // Financial insights
+    {
+      path: '/kpr/insights',
+      method: 'get',
+      handler: async (req) => { /* ... */ },
+    },
+    // Trigger email reminder
+    {
+      path: '/kpr/send-reminder',
+      method: 'post',
+      handler: async (req) => { /* ... */ },
+    },
+    // Seed data from CSV
+    {
+      path: '/kpr/seed',
+      method: 'post',
+      handler: async (req) => { /* ... */ },
+    },
+  ],
+});
+```
 
 ---
 
 ## 5. Features
 
-### 5.1 Dashboard (Home)
+### 5.1 Dashboard (Route: /)
 
-**Purpose:** Overview seluruh status KPR dalam satu halaman.
+**Summary Cards:**
+- Total Pinjaman: Rp 415,000,000
+- Sisa Pokok: Rp 378,443,227 (computed from schedule)
+- Total Bunga Dibayar: Rp 56,425,862 (computed)
+- Progress: 8.8% terbayar
+- Angsuran Bulan Ini: Rp 2,681,900
+- Bunga Aktif: 4.75% (Fase 1)
 
-**Components:**
-- **KPR Summary Cards**
-  - Total pinjaman, sisa pokok, total bunga dibayar, persentase terbayar
-  - Angsuran bulan ini, tanggal jatuh tempo
-  - Bunga aktif saat ini, fase bunga berikutnya
+**Visual Elements:**
+- Progress bar segmented per fase bunga
+- Countdown ke fase berikutnya
+- Donut chart: pokok vs bunga yang sudah dibayar
+- Area chart: outstanding balance over time
 
-- **Amortization Progress Bar**
-  - Visual progress bar: pokok terbayar vs total
-  - Breakdown: pokok vs bunga yang sudah dibayar
+### 5.2 Tabel Angsuran (Route: /schedule)
 
-- **Payment Timeline**
-  - Visual timeline 3 fase bunga (4.75% → 8.00% → 10.25%)
-  - Marker posisi saat ini
-  - Countdown ke fase berikutnya
+**TanStack Table:**
+- 240 rows dengan kolom: Bulan, Tanggal, Pokok, Bunga, Total, Saldo, Rate, Status
+- Row highlighting: bulan berjalan (current), fase bunga (color coded)
+- Sort, filter, column visibility toggle
+- Toggle "is_paid" per row (checkbox)
+- Bulk mark: "Tandai semua sampai bulan X"
+- Virtual scrolling atau pagination
 
-- **Key Metrics**
-  - Total biaya 20 tahun vs sudah dibayar
-  - Rasio bunga/pokok
-  - Estimasi sisa tenor
-  - Estimasi total bunga yang akan dibayar jika lanjut sampai lunas
+**Charts:**
+- Stacked area: pokok vs bunga per bulan
+- Line: outstanding balance
+- Bar: bunga vs pokok per tahun
 
-- **Next Payment Card**
-  - Angsuran berikutnya: nominal, tanggal
-  - Breakdown pokok vs bunga
-  - Sisa pokok setelah pembayaran
+### 5.3 Payment Simulator (Route: /simulator)
 
-### 5.2 Installment Schedule (Tabel Angsuran)
-
-**Purpose:** Tabel interaktif seluruh 240 bulan angsuran.
-
-**Components:**
-- **TanStack Table** dengan:
-  - Kolom: Bulan, Tanggal, Pokok, Bunga, Total, Saldo, Rate, Status
-  - Sort, filter, search
-  - Column visibility toggle
-  - Pagination (opsional, atau virtual scrolling untuk 240 rows)
-  - Row highlighting: bulan berjalan, fase bunga
-  - Export CSV
-
-- **Visual Charts**
-  - Stacked area chart: pokok vs bunga per bulan
-  - Line chart: outstanding balance over time
-  - Bar chart: bunga vs pokok per tahun
-
-- **Payment Status**
-  - Toggle/set kolom "is_paid" per bulan
-  - Bulk mark: "tandai semua sampai bulan X sebagai lunas"
-  - Catatan pembayaran (jika ada keterlambatan, extra payment)
-
-### 5.3 Payment Simulator
-
-**Purpose:** Simulasi skenario pembayaran dan pelunasan dipercepat.
-
-**Scenarios:**
-
-#### 5.3.1 Early Full Payoff
-- Input: target bulan pelunasan (dropdown/slider)
-- Output:
+**Tab 1: Early Full Payoff**
+- Slider/input: target bulan pelunasan (1-240)
+- Computed output:
   - Sisa pokok di bulan tsb
-  - Penalti pelunasan (10% atau 2.5% tergantung tenor)
-  - Total yang harus dibayar ke bank
-  - Grand total cost (angsuran sudah dibayar + pelunasan)
-  - Hemat vs tenor penuh (Rp dan %)
-  - Break-even penalti (berapa bulan)
+  - Penalti (10% atau 2.5%)
+  - Total ke bank
+  - Grand total cost
+  - Hemat vs tenor penuh
+  - Break-even penalti
 
-#### 5.3.2 Extra Payment Simulation
+**Tab 2: Extra Payment**
 - Input: nominal extra per bulan, mulai bulan ke-
-- Output:
-  - Tenor baru (berapa bulan lebih cepat lunas)
-  - Total bunga yang dihemat
-  - Amortization schedule baru (side by side vs original)
-  - Perbandingan grafik
+- Computed output:
+  - Tenor baru (lebih cepat X bulan)
+  - Bunga yang dihemat
+  - Side-by-side chart vs original
 
-#### 5.3.3 Refinance Simulation
-- Input: bunga baru, tenor baru
-- Output:
-  - Angsuran baru
-  - Total bunga baru vs lama
-  - Break-even point
-
-#### 5.3.4 Comparison Table
-- Side-by-side comparison semua skenario
+**Tab 3: Comparison**
+- Tabel perbandingan semua skenario tersimpan
 - Highlight skenario terbaik
-- Export hasil simulasi
 
-### 5.4 Financial Insights
+### 5.4 Financial Insights (Route: /insights)
 
-**Purpose:** Analisa dan advice otomatis (seperti financial analyst).
+**Opportunity Cost Table:**
+| Instrumen | Return | vs Bunga KPR | Verdict |
+|-----------|--------|--------------|---------|
+| Deposito | 5.2% | vs 4.75% | KPR lebih murah |
+| Obligasi ORI | 6.5% | vs 4.75% | KPR lebih murah |
+| Reksadana | 10% | vs 10.25% | Sebanding |
 
-**Components:**
-- **Opportunity Cost Analysis**
-  - Bunga KPR vs instrumen investasi (deposito, obligasi, reksadana)
-  - Grafik perbandingan return
+**Milestones:**
+- "3 bulan lagi bunga naik ke 8%"
+- "Penalti pelunasan sudah turun ke 2.5%"
+- "Anda sudah membayar 25% pokok"
 
-- **Optimal Payoff Window**
-  - Kapan waktu terbaik melunasi
-  - Mengingat struktur bunga berjenjang
+**Recommendations:**
+- Kapan waktu terbaik melunasi
+- Strategi optimal berdasarkan posisi saat ini
 
-- **Cash Flow Projection**
-  - Proyeksi pengeluaran KPR per tahun
-  - Total biaya per fase bunga
+### 5.5 Settings (Route: /settings)
 
-- **Milestone Alerts**
-  - "3 bulan lagi bunga naik ke 8%"
-  - "Anda sudah membayar 50% dari pokok"
-  - "Penalti pelunasan sudah turun ke 2.5%"
-
-### 5.5 Email Reminders
-
-**Purpose:** Reminder otomatis sebelum jatuh tempo.
-
-**Features:**
-- Konfigurasi email penerima
-- Pilih hari reminder (X hari sebelum jatuh tempo)
-- Email content:
-  - Angsuran bulan ini (nominal, breakdown pokok/bunga)
-  - Sisa pokok setelah pembayaran
-  - Progress pembayaran (% terbayar)
-  - Milestone/insight bulan ini
-- Test email button
-- Log pengiriman (sukses/gagal)
-
-### 5.6 Settings
-
-**Purpose:** Konfigurasi aplikasi.
-
-**Features:**
-- Edit data KPR (jika ada perubahan dari bank)
+- Edit data KPR
 - Kelola rate tiers
-- Tandai pembayaran sudah dilakukan (manual atau bulk)
 - Konfigurasi email reminder
-- Export semua data (CSV/JSON)
-- Dark mode toggle
+- Manual bulk mark payments
+- Export CSV
+
+### 5.6 Email Reminders
+
+**Flow:**
+1. User konfigurasi reminder di Settings (email, hari)
+2. Payload cron job / scheduled task check setiap hari
+3. Jika hari ini = reminder day, kirim email via Nodemailer (Google SMTP)
+4. Email content: angsuran bulan ini, sisa pokok, progress, insight
 
 ---
 
-## 6. API Design
+## 6. Auth Strategy
 
-### 6.1 Endpoints
+**Payload CMS Built-in Auth:**
+- JWT-based authentication
+- API key support (untuk frontend SPA)
+- Admin panel login di `/admin`
+- Single user: satu akun Users saja
 
-```
-Base URL: /api/v1
+**Frontend Auth Flow:**
+1. User login via `/admin` (Payload admin panel)
+2. Atau: Frontend SPA punya login page sendiri yang panggil Payload REST API
+3. JWT token disimpan di localStorage/cookie
+4. Semua API calls menyertakan Bearer token
 
-# KPR Loan
-GET    /kpr/loan                    # Get loan metadata
-PUT    /kpr/loan                    # Update loan metadata
-
-# Rate Tiers
-GET    /kpr/rates                   # Get all rate tiers
-
-# Schedule
-GET    /kpr/schedule                # Get full schedule
-GET    /kpr/schedule?month=33       # Get specific month
-PATCH  /kpr/schedule/:month/mark-paid  # Mark month as paid
-PATCH  /kpr/schedule/bulk-mark-paid    # Bulk mark as paid
-
-# Current Status
-GET    /kpr/status                  # Current status (month, balance, etc.)
-
-# Extra Payments
-GET    /kpr/extra-payments          # List extra payments
-POST   /kpr/extra-payments          # Record extra payment
-DELETE /kpr/extra-payments/:id      # Remove extra payment
-
-# Simulations
-GET    /simulations                 # List saved simulations
-POST   /simulations                 # Run & save simulation
-GET    /simulations/:id             # Get simulation result
-DELETE /simulations/:id             # Delete simulation
-
-POST   /simulations/early-payoff    # Run early payoff simulation
-POST   /simulations/extra-payment   # Run extra payment simulation
-
-# Reminders
-GET    /reminders                   # List reminders
-POST   /reminders                   # Create reminder
-PUT    /reminders/:id               # Update reminder
-DELETE /reminders/:id               # Delete reminder
-POST   /reminders/:id/test          # Send test email
-
-# Insights
-GET    /insights                    # Get financial insights
-GET    /insights/opportunity-cost   # Opportunity cost analysis
-GET    /insights/milestones         # Upcoming milestones
-
-# Export
-GET    /export/schedule.csv         # Export schedule as CSV
-GET    /export/report.pdf           # Export full report (future)
-```
-
-### 6.2 Response Format
-
-```typescript
-// Standard API response
-interface ApiResponse<T> {
-  success: boolean;
-  data: T;
-  meta?: {
-    timestamp: string;
-    // pagination if applicable
-  };
-  error?: {
-    code: string;
-    message: string;
-  };
-}
-```
+**Recommendation:** Gunakan Payload admin panel untuk manage data (CRUD), dan frontend SPA untuk view/analyze data. Auth di SPA menggunakan Payload's REST auth endpoint.
 
 ---
 
-## 7. Shared Types (packages/shared)
+## 7. Tech Stack (Final)
 
-```typescript
-// Core KPR types
-interface KprLoan {
-  id: string;
-  borrowerName: string;
-  coBorrower?: string;
-  bankName: string;
-  branch?: string;
-  loanAmount: number;
-  housePrice: number;
-  downPayment: number;
-  tenorMonths: number;
-  firstPayment: string; // ISO date
-  offeringLetter?: string;
-  propertyAddress?: string;
-  certificateNo?: string;
-}
-
-interface RateTier {
-  tierOrder: number;
-  startMonth: number;
-  endMonth: number;
-  ratePct: number;
-  installment: number;
-}
-
-interface ScheduleEntry {
-  monthNumber: number;
-  calendarDate: string;
-  principalPortion: number;
-  interestPortion: number;
-  totalInstallment: number;
-  outstandingBalance: number;
-  interestRate: number;
-  isPaid: boolean;
-  paidDate?: string;
-  paidAmount?: number;
-}
-
-// Simulation types
-interface EarlyPayoffInput {
-  targetMonth: number;
-}
-
-interface EarlyPayoffResult {
-  targetMonth: number;
-  calendarDate: string;
-  outstandingPrincipal: number;
-  penaltyRate: number;        // 10% or 2.5%
-  penaltyAmount: number;
-  totalToPayBank: number;
-  alreadyPaid: number;
-  grandTotal: number;
-  savingsVsFull: number;
-  savingsPct: number;
-  breakEvenMonths: number;
-  currentInterestRate: number;
-  monthlyInterestSaved: number;
-}
-
-interface ExtraPaymentInput {
-  monthlyExtra: number;
-  startMonth: number;
-}
-
-interface ExtraPaymentResult {
-  originalTenor: number;
-  newTenor: number;
-  monthsSaved: number;
-  totalInterestOriginal: number;
-  totalInterestNew: number;
-  interestSaved: number;
-  newSchedule: ScheduleEntry[];
-}
-
-// Reminder types
-interface Reminder {
-  id: string;
-  email: string;
-  reminderDay: number;   // day of month
-  isActive: boolean;
-  lastSentAt?: string;
-}
-
-// Insight types
-interface Milestone {
-  type: 'rate_change' | 'payoff_opportunity' | 'percentage_reached' | 'penalty_change';
-  date: string;
-  title: string;
-  description: string;
-  urgency: 'info' | 'warning' | 'critical';
-}
-
-interface OpportunityCostRow {
-  instrument: string;
-  annualReturn: number;
-  vsKprRate: number;
-  verdict: 'lebih_murah' | 'sebanding' | 'lebih_mahal';
-}
-
-// Current status
-interface KprStatus {
-  currentMonth: number;
-  currentDate: string;
-  currentRate: number;
-  currentInstallment: number;
-  outstandingBalance: number;
-  totalPaid: number;
-  totalPrincipalPaid: number;
-  totalInterestPaid: number;
-  pctPaid: number;
-  monthsRemaining: number;
-  nextPaymentDate: string;
-  nextPaymentAmount: number;
-  nextPaymentPrincipal: number;
-  nextPaymentInterest: number;
-  nextBalanceAfter: number;
-  currentPhase: number;
-  nextPhaseMonth?: number;
-  nextPhaseRate?: number;
-  monthsUntilNextPhase?: number;
-}
-```
+| Layer | Technology | Version |
+|-------|-----------|---------|
+| **Frontend** | React + Vite | 19.x / 6.x |
+| **Routing** | TanStack Router | latest |
+| **Data Fetching** | TanStack Query | latest |
+| **Data Tables** | TanStack Table | latest |
+| **Styling** | TailwindCSS + shadcn/ui | 4.x |
+| **Charts** | Recharts | latest |
+| **Backend (CMS)** | Payload CMS | 3.35+ |
+| **Framework** | Next.js | 15.4.x |
+| **Database** | MongoDB Atlas | shared cluster |
+| **Email** | Nodemailer | via Google SMTP |
+| **Monorepo** | Turborepo + pnpm | same as portfolio |
+| **Container** | Docker + K8s | same pattern |
+| **Ingress** | Traefik IngressRoute | monetalis.danipras.dev |
+| **Registry** | GHCR | ghcr.io/blacknvcone/vates-monitalis |
 
 ---
 
-## 8. Frontend Routes (TanStack Router)
+## 8. Deployment
 
-```
-/                           → Dashboard (home)
-/schedule                   → Tabel Angsuran (TanStack Table)
-/simulator                  → Payment Simulator
-  /simulator/early-payoff   → Early Payoff Simulator
-  /simulator/extra-payment  → Extra Payment Simulator
-  /simulator/compare        → Scenario Comparison
-/insights                   → Financial Insights
-/settings                   → Settings
-  /settings/reminders       → Email Reminder Config
-  /settings/loan            → Edit Loan Data
-```
-
----
-
-## 9. UI Design Guidelines
-
-### 9.1 Design Principles
-- **Professional**: Terlihat seperti dashboard fintech profesional
-- **Informatif**: Setiap angka punya konteks dan makna
-- **Actionable**: User tahu apa yang harus dilakukan
-- **Clean**: Tidak cluttered, whitespace cukup
-
-### 9.2 Color System
-- **Primary**: Deep blue (#1e3a5f) - trust, stability
-- **Success**: Green (#22c55e) - paid, savings
-- **Warning**: Amber (#f59e0b) - rate change coming
-- **Danger**: Red (#ef4444) - penalty, high interest
-- **Neutral**: Slate grays
-
-### 9.3 Key UI Components
-- **Summary Cards**: Large number + context + trend indicator
-- **Progress Bars**: Animated, segmented by phase
-- **Data Tables**: TanStack Table with sticky headers, row highlighting
-- **Charts**: Responsive, interactive tooltips
-- **Simulation Panel**: Side-by-side comparison layout
-
-### 9.4 Responsive
-- Mobile-first, desktop-optimized
-- Sidebar navigation on desktop, bottom nav on mobile
-
----
-
-## 10. Email Template
-
-### 10.1 Monthly Reminder Email
-
-```
-Subject: 🔔 Angsuran KPR Bulan {{month}} - Rp {{amount}}
-
-Body:
-- Header: Logo + "Monetalis KPR Reminder"
-- Greeting: "Halo {{name}},"
-
-- Card: Angsuran Bulan Ini
-  - Total: Rp {{amount}}
-  - Pokok: Rp {{principal}}
-  - Bunga: Rp {{interest}}
-  - Jatuh Tempo: {{due_date}}
-
-- Card: Status KPR
-  - Sisa Pokok: Rp {{balance_after}}
-  - Progress: {{pct_paid}}% terbayar
-  - Fase Bunga: {{current_rate}}% ({{phase_name}})
-
-- Section: Insight Bulan Ini
-  - {{dynamic_insight}} (e.g., "3 bulan lagi bunga naik ke 8%")
-
-- CTA: "Lihat Dashboard →" (link ke app)
-
-- Footer: Monetalis - KPR Financial Dashboard
-```
-
----
-
-## 11. Deployment
-
-### 11.1 Docker Images
-
-**web (Frontend)**
-```dockerfile
-# Multi-stage: build Vite app, serve with nginx
-FROM node:22-alpine AS build
-# ... build steps ...
-FROM nginx:alpine
-COPY --from=build /app/dist /usr/share/nginx/html
-```
-
-**api (Backend)**
-```dockerfile
-FROM node:22-alpine
-# ... install deps, build ...
-CMD ["node", "dist/index.js"]
-```
-
-### 11.2 K8s Manifests
+### 8.1 K8s Namespace
 
 ```yaml
-# Deployment: web (1 replica)
-# Deployment: api (1 replica)
-# Service: web (ClusterIP)
-# Service: api (ClusterIP)
-# Ingress: monetalis.example.com → web
-#          monetalis.example.com/api → api
-# ConfigMap: api config (DB URL, SMTP settings)
-# Secret: DB password, SMTP password
-# CronJob: email reminder check (daily)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monetalis
 ```
 
-### 11.3 Environment Variables
+### 8.2 Traefik IngressRoute
+
+```yaml
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: monetalis-ingressroute
+  namespace: monetalis
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`monetalis.danipras.dev`)
+      kind: Rule
+      services:
+        - name: monetalis-web
+          port: 80
+    - match: Host(`monetalis.danipras.dev`) && PathPrefix(`/api`, `/admin`)
+      kind: Rule
+      services:
+        - name: monetalis-cms
+          port: 80
+  tls:
+    certResolver: letsencrypt
+```
+
+### 8.3 Environment Variables
 
 ```env
-# API
-DATABASE_URL=postgresql://user:pass@postgres:5432/monetalis
+# CMS (Payload)
+DATABASE_URI=mongodb+srv://user:***@cluster.mongodb.net/monetalis
+PAYLOAD_SECRET=<generate-random>
+PAYLOAD_PUBLIC_SERVER_URL=https://monetalis.danipras.dev
 SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
-SMTP_USER=email@gmail.com
-SMTP_PASS=app-password
-APP_URL=https://monetalis.example.com
+SMTP_USER=dani.prasetya@gmail.com
+SMTP_PASS=<app-password>
 
-# Web
-VITE_API_URL=/api/v1
+# Web (Frontend)
+VITE_API_URL=https://monetalis.danipras.dev/api
 ```
 
 ---
 
-## 12. Development Phases
+## 9. Implementation Phases
 
-### Phase 1: Foundation (MVP)
-- [ ] Monorepo setup (Turborepo)
-- [ ] Backend: Hono API + Drizzle + PostgreSQL
-- [ ] Seed data from CSV
-- [ ] Frontend: TanStack Router + basic Dashboard
-- [ ] Tabel Angsuran dengan TanStack Table
-- [ ] Basic KPR status endpoint
+### Phase 1: Foundation
+- [ ] Monorepo setup (Turborepo + pnpm)
+- [ ] Payload CMS setup (collections + seed data)
+- [ ] Frontend SPA skeleton (TanStack Router)
+- [ ] Dashboard page with summary cards
+- [ ] Auth integration
 
-### Phase 2: Simulator
+### Phase 2: Core Features
+- [ ] Tabel Angsuran (TanStack Table)
+- [ ] Charts & visualizations
+- [ ] Payment status tracking (is_paid toggle)
+- [ ] Custom endpoint: /kpr/status
+
+### Phase 3: Simulator
 - [ ] Early payoff simulator
 - [ ] Extra payment simulator
 - [ ] Scenario comparison
-- [ ] Charts & visualizations
+- [ ] Custom endpoints: /kpr/simulate/*
 
-### Phase 3: Insights & Email
+### Phase 4: Insights & Email
 - [ ] Financial insights engine
 - [ ] Milestone alerts
-- [ ] Email reminder system (Nodemailer + Google SMTP)
-- [ ] Email templates
-- [ ] Cron job for daily reminder check
+- [ ] Email reminder system (Nodemailer)
+- [ ] Custom endpoints: /kpr/insights, /kpr/send-reminder
 
-### Phase 4: Polish & Deploy
-- [ ] Responsive design
-- [ ] Dark mode
-- [ ] Export (CSV)
-- [ ] Docker + K8s manifests
-- [ ] CI/CD pipeline
-- [ ] Documentation
+### Phase 5: Deploy
+- [ ] Dockerfile (web + cms)
+- [ ] K8s manifests
+- [ ] CI/CD (GitHub Actions → GHCR)
+- [ ] Traefik IngressRoute
+- [ ] Domain setup: monetalis.danipras.dev
 
 ---
 
-## 13. Non-Functional Requirements
+## 10. Open Questions (Resolved)
 
-| Requirement | Target |
-|-------------|--------|
-| Page Load Time | < 2s (SPA, cached) |
-| API Response Time | < 200ms (p95) |
-| Uptime | 99% (personal tool) |
-| Browser Support | Chrome, Firefox, Safari (latest 2 versions) |
-| Mobile | Responsive, touch-friendly |
-| Security | API key auth (single-user), HTTPS via K8s ingress |
-| Data Backup | PostgreSQL backup via K8s CronJob |
-
----
-
-## 14. Open Questions
-
-1. **Auth**: Saat ini single-user, apakah perlu login? Atau cukup network-level security (VPN/ingress restriction)?
-2. **Multi-loan**: Apakah perlu support multiple KPR loans di masa depan?
-3. **Payload CMS Integration**: Apakah perlu integrate dengan Payload CMS yang sudah ada?
-4. **Domain**: Apa domain yang akan digunakan?
+| Question | Decision |
+|----------|----------|
+| Auth? | ✅ Payload built-in JWT + API key |
+| Multi-loan? | 🔜 Future, focus single KPR now |
+| Payload CMS integration? | ✅ Payload AS backend (no separate API) |
+| Database? | ✅ MongoDB Atlas (shared cluster, separate DB) |
+| Domain? | ✅ monetalis.danipras.dev via Traefik |
