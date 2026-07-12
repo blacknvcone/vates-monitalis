@@ -459,8 +459,8 @@ function UsersSection() {
       ) : (
         <div className="space-y-2">
           {users.map((u) => {
-            const paymentKey = `user-${u.id}-payment`;
-            const insightKey = `user-${u.id}-insight`;
+            const paymentKey = `user-${u.email}-payment`;
+            const insightKey = `user-${u.email}-insight`;
             const paymentSt = testStatus[paymentKey];
             const insightSt = testStatus[insightKey];
 
@@ -495,7 +495,7 @@ function UsersSection() {
                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100"
                   >
                     {paymentSt === 'sending' ? <Loader2 size={12} className="animate-spin" /> : paymentSt === 'sent' ? <CheckCircle size={12} /> : paymentSt === 'error' ? <AlertCircle size={12} /> : <Send size={12} />}
-                    {paymentSt === 'sending' ? 'Mengirim...' : paymentSt === 'sent' ? 'Terkirim!' : paymentSt === 'error' ? 'Gagal' : 'Test Pengingat'}
+                    {paymentSt === 'sending' ? 'Mengirim...' : paymentSt === 'sent' ? 'Terkirim!' : paymentSt === 'error' ? 'Gagal' : 'Kirim Pengingat'}
                   </button>
                   <button
                     onClick={() => handleTestUserEmail(u.email, 'insight')}
@@ -503,7 +503,7 @@ function UsersSection() {
                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
                   >
                     {insightSt === 'sending' ? <Loader2 size={12} className="animate-spin" /> : insightSt === 'sent' ? <CheckCircle size={12} /> : insightSt === 'error' ? <AlertCircle size={12} /> : <Send size={12} />}
-                    {insightSt === 'sending' ? 'Mengirim...' : insightSt === 'sent' ? 'Terkirim!' : insightSt === 'error' ? 'Gagal' : 'Test Laporan'}
+                    {insightSt === 'sending' ? 'Mengirim...' : insightSt === 'sent' ? 'Terkirim!' : insightSt === 'error' ? 'Gagal' : 'Kirim Laporan'}
                   </button>
                 </div>
               </div>
