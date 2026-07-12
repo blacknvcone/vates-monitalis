@@ -2,7 +2,7 @@
 
 ## Product Requirements Document (PRD)
 
-**Version:** 2.0 (Revised)
+**Version:** 3.0 (Shared CMS Architecture)
 **Date:** 12 Juli 2026
 **Status:** Ready for Implementation
 
@@ -17,541 +17,354 @@ Monitoring KPR dengan struktur bunga berjenjang (stepped fixed rate) membutuhkan
 ### 1.2 Solution
 
 Web application personal finance dashboard:
-- **Frontend**: React SPA dengan TanStack (Router + Query + Table)
-- **Backend**: Payload CMS 3.x (REST API + Auth + Admin Panel)
-- **Database**: MongoDB (shared cluster dengan portfolio CMS, database terpisah)
-- **Email**: Nodemailer via Google SMTP
+- **Frontend**: Standalone React SPA dengan TanStack (Router + Query + Table)
+- **Backend**: Shared Payload CMS 3.x (sudah ada di `revamp-portfolio`)
+- **Database**: MongoDB Atlas (shared cluster, database yang sama)
+- **Email**: Nodemailer via Google SMTP (custom endpoint di CMS)
 
 ### 1.3 Key Architecture Decision
 
-> **Payload CMS sebagai backend** — menghilangkan kebutuhan untuk membangun API terpisah (Hono/Express).
-> Payload auto-generates REST & GraphQL API untuk semua collections, plus built-in auth.
-> Mengikuti pattern yang sudah established di `revamp-portfolio` monorepo.
+> **Shared CMS** — Payload CMS yang sudah ada di `revamp-portfolio/apps/cms/`
+> digunakan sebagai backend untuk multiple frontends (portfolio + monetalis).
+> KPR collections ditambahkan dengan group `Monetalis` untuk separasi yang jelas.
 
 ---
 
 ## 2. Architecture
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│  K8s Cluster                                                 │
-│                                                              │
-│  ┌─────────────────┐     ┌──────────────────────┐           │
-│  │  web (SPA)       │     │  cms (Payload 3.x)   │           │
-│  │  Vite + React    │────►│  Next.js 15          │           │
-│  │  TanStack        │ API │  REST + GraphQL      │           │
-│  │  port 3000       │     │  Auth (JWT + API Key)│           │
-│  │                  │     │  Admin Panel /admin  │           │
-│  │  nginx           │     │  port 3001           │           │
-│  └─────────────────┘     └──────┬───────┬───────┘           │
-│                                  │       │                   │
-│                           ┌──────▼──┐ ┌──▼────────┐         │
-│                           │ MongoDB │ │ Google    │         │
-│                           │ Atlas   │ │ SMTP      │         │
-│                           └─────────┘ └───────────┘         │
-│                                                              │
-│  Traefik IngressRoute:                                       │
-│    monetalis.danipras.dev      → web:3000                    │
-│    monetalis.danipras.dev/api  → cms:3001                    │
-│    monetalis.danipras.dev/admin → cms:3001                   │
-└──────────────────────────────────────────────────────────────┘
+                    ┌─────────────────────────────────────┐
+                    │  Shared Payload CMS                  │
+                    │  (revamp-portfolio/apps/cms/)        │
+                    │  cms.danipras.dev                    │
+                    │                                      │
+                    │  Collections:                        │
+                    │  ┌─────────────────┐                │
+                    │  │ Shared          │                │
+                    │  │  - Users        │                │
+                    │  │  - Media        │                │
+                    │  ├─────────────────┤                │
+                    │  │ Portfolio Web   │                │
+                    │  │  - Projects     │                │
+                    │  │  - Experiences  │                │
+                    │  │  - Skills       │                │
+                    │  │  - Educations   │                │
+                    │  │  - Certifications│               │
+                    │  │  - Profile (G)  │                │
+                    │  ├─────────────────┤                │
+                    │  │ Monetalis       │ ← NEW          │
+                    │  │  - KPR Loans    │                │
+                    │  │  - Rate Tiers   │                │
+                    │  │  - Schedule     │                │
+                    │  │  - Extra Pmts   │                │
+                    │  │  - Reminders    │                │
+                    │  │  - Simulations  │                │
+                    │  └─────────────────┘                │
+                    └──────────┬──────────────────────────┘
+                               │
+              ┌────────────────┼────────────────┐
+              │                │                │
+     ┌────────▼───────┐ ┌─────▼──────┐ ┌───────▼───────┐
+     │ Portfolio Web   │ │ Monetalis  │ │ Future Apps   │
+     │ (existing)      │ │ Web (SPA)  │ │ ...           │
+     │ Next.js         │ │ Vite+React │ │               │
+     └────────────────┘ └────────────┘ └───────────────┘
 ```
 
-### 2.1 Why Payload CMS as Backend?
-
-| Aspect | Payload CMS | Custom API (Hono) |
-|--------|------------|-------------------|
-| Auth | Built-in (JWT, API keys) | Harus build sendiri |
-| CRUD API | Auto-generated | Manual |
-| Admin Panel | Gratis (React admin) | Harus build sendiri |
-| Type Safety | Auto-generate types | Manual |
-| Deployment | Pattern sudah ada | Pattern baru |
-| Effort | ~50% lebih sedikit | Full custom |
-
-### 2.2 Monorepo Structure
+### 2.1 Repo Structure
 
 ```
-vates-monitalis/
+revamp-portfolio/                    # Shared CMS (sudah ada)
 ├── apps/
-│   ├── web/                          # Frontend SPA
-│   │   ├── src/
-│   │   │   ├── routes/               # TanStack Router file-based routes
-│   │   │   │   ├── __root.tsx
-│   │   │   │   ├── index.tsx         # Dashboard
-│   │   │   │   ├── schedule.tsx      # Tabel Angsuran
-│   │   │   │   ├── simulator.tsx     # Payment Simulator
-│   │   │   │   ├── insights.tsx      # Financial Insights
-│   │   │   │   └── settings.tsx      # Settings
-│   │   │   ├── components/
-│   │   │   │   ├── ui/               # shadcn/ui components
-│   │   │   │   ├── dashboard/        # Dashboard components
-│   │   │   │   ├── schedule/         # Table components
-│   │   │   │   ├── simulator/        # Simulator components
-│   │   │   │   └── insights/         # Insight components
-│   │   │   ├── lib/
-│   │   │   │   ├── api.ts            # Payload API client
-│   │   │   │   ├── auth.ts           # Auth helpers
-│   │   │   │   └── utils.ts          # Utilities
-│   │   │   ├── hooks/                # Custom hooks
-│   │   │   └── styles/
-│   │   ├── Dockerfile
-│   │   ├── vite.config.ts
-│   │   └── package.json
-│   │
-│   └── cms/                          # Payload CMS (backend)
-│       ├── src/
-│       │   ├── collections/
-│       │   │   ├── Users.ts          # Auth users (existing pattern)
-│       │   │   ├── KprLoans.ts       # KPR loan metadata
-│       │   │   ├── KprRateTiers.ts   # Interest rate tiers
-│       │   │   ├── KprSchedule.ts    # Amortization schedule (240 rows)
-│       │   │   ├── KprExtraPayments.ts # Extra payments log
-│       │   │   ├── KprReminders.ts   # Email reminder config
-│       │   │   └── KprSimulations.ts # Saved simulations
-│       │   ├── endpoints/
-│       │   │   ├── simulate.ts       # Custom: run simulations
-│       │   │   ├── insights.ts       # Custom: financial insights
-│       │   │   ├── status.ts         # Custom: current KPR status
-│       │   │   └── send-reminder.ts  # Custom: trigger email
-│       │   ├── hooks/                # Collection hooks
-│       │   ├── jobs/
-│       │   │   └── reminder-cron.ts  # Scheduled email reminders
-│       │   ├── payload.config.ts
-│       │   └── app/                  # Next.js app dir (admin)
-│       ├── Dockerfile
-│       ├── infra/                    # K8s manifests
-│       │   ├── deployment.yaml
-│       │   ├── service.yaml
-│       │   ├── ingressroute.yaml
-│       │   └── namespace.yaml
-│       ├── .env.example
-│       └── package.json
+│   ├── cms/                         # Payload CMS (shared backend)
+│   │   └── src/
+│   │       ├── collections/
+│   │       │   ├── Users.ts         # Shared
+│   │       │   ├── Media.ts         # Shared
+│   │       │   ├── Profile.ts       # Portfolio Web
+│   │       │   ├── Projects.ts      # Portfolio Web
+│   │       │   ├── Experiences.ts   # Portfolio Web
+│   │       │   ├── Skills.ts        # Portfolio Web
+│   │       │   ├── Educations.ts    # Portfolio Web
+│   │       │   ├── Certifications.ts# Portfolio Web
+│   │       │   └── monetalis/       # ← NEW (subdirectory)
+│   │       │       ├── index.ts
+│   │       │       ├── KprLoans.ts
+│   │       │       ├── KprRateTiers.ts
+│   │       │       ├── KprSchedule.ts
+│   │       │       ├── KprExtraPayments.ts
+│   │       │       ├── KprReminders.ts
+│   │       │       └── KprSimulations.ts
+│   │       └── payload.config.ts    # Updated dengan monetalis imports
+│   └── web/                         # Portfolio frontend (existing)
 │
-├── packages/
-│   └── shared/                       # Shared types & utils
-│       └── src/
-│           ├── types.ts              # TypeScript interfaces
-│           ├── schemas.ts            # Zod schemas
-│           └── utils.ts              # Currency format, date helpers
-│
-├── docker-compose.yaml               # Local dev
-├── turbo.json
-├── pnpm-workspace.yaml
-├── package.json
-└── README.md
+vates-monitalis/                     # Monetalis frontend (NEW repo)
+├── src/
+│   ├── routes/                      # TanStack Router
+│   ├── components/
+│   ├── lib/
+│   │   ├── api.ts                   # Payload API client
+│   │   └── auth.ts                  # Auth helpers
+│   └── hooks/
+├── Dockerfile
+├── vite.config.ts
+└── package.json
+```
+
+### 2.2 Admin Panel Grouping
+
+Di Payload admin panel (`cms.danipras.dev/admin`), sidebar akan terlihat:
+
+```
+┌─────────────────────────┐
+│ Collections             │
+├─────────────────────────┤
+│ Users                   │ (shared, no group)
+│ Media                   │ (shared, no group)
+├─────────────────────────┤
+│ ▸ Portfolio Web         │
+│   - Projects            │
+│   - Experiences         │
+│   - Skills              │
+│   - Educations          │
+│   - Certifications      │
+├─────────────────────────┤
+│ ▸ Monetalis             │ ← NEW group
+│   - KPR Loans           │
+│   - KPR Rate Tiers      │
+│   - KPR Schedule        │
+│   - KPR Extra Payments  │
+│   - KPR Reminders       │
+│   - KPR Simulations     │
+├─────────────────────────┤
+│ Globals                 │
+│   - Profile             │
+└─────────────────────────┘
 ```
 
 ---
 
-## 3. Payload CMS Collections (Data Model)
+## 3. Collections Detail
 
-### 3.1 Users (built-in, same pattern as portfolio)
+### 3.1 KprLoans (`kpr-loans`)
 
-```typescript
-// Same as revamp-portfolio/apps/cms/src/collections/Users.ts
-// Auth with JWT + API key support
-```
+Metadata pinjaman KPR. Tab layout untuk organisasi field yang lebih baik.
 
-### 3.2 KprLoans
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| borrowerName | text | ✓ | Nama peminjam |
+| coBorrower | text | | Co-borrower |
+| bankName | text | ✓ | Nama bank (default: BRI) |
+| branch | text | | Cabang |
+| **Tab: Pinjaman** | | | |
+| loanAmount | number | ✓ | Jumlah pinjaman (Rp) |
+| housePrice | number | ✓ | Harga rumah (Rp) |
+| downPayment | number | ✓ | Uang muka (Rp) |
+| tenorMonths | number | ✓ | Tenor (bulan, default: 240) |
+| firstPayment | date | ✓ | Tanggal pembayaran pertama |
+| **Tab: Dokumen** | | | |
+| offeringLetterRef | text | | No. Offering Letter |
+| propertyAddress | textarea | | Alamat properti |
+| certificateNo | text | | No. sertifikat |
+| collateralValue | number | | Nilai pengikatan agunan (Rp) |
+| **Tab: Aturan Penalti** | | | |
+| penaltyBeforeMinTenor | number | | Penalti sebelum tenor min (%, default: 10) |
+| penaltyAfterMinTenor | number | | Penalti setelah tenor min (%, default: 2.5) |
+| minTenorMonths | number | | Tenor minimum (bulan, default: 36) |
+| minPartialPrepayment | number | | Min pelunasan sebagian (x angsuran, default: 6) |
 
-```typescript
-export const KprLoans: CollectionConfig = {
-  slug: 'kpr-loans',
-  admin: { useAsTitle: 'borrowerName', group: 'KPR' },
-  fields: [
-    { name: 'borrowerName', type: 'text', required: true },
-    { name: 'coBorrower', type: 'text' },
-    { name: 'bankName', type: 'text', required: true, defaultValue: 'BRI' },
-    { name: 'branch', type: 'text' },
-    { name: 'loanAmount', type: 'number', required: true, min: 0 },
-    { name: 'housePrice', type: 'number', required: true },
-    { name: 'downPayment', type: 'number', required: true },
-    { name: 'tenorMonths', type: 'number', required: true, defaultValue: 240 },
-    { name: 'firstPayment', type: 'date', required: true },
-    { name: 'offeringLetterRef', type: 'text' },
-    { name: 'propertyAddress', type: 'textarea' },
-    { name: 'certificateNo', type: 'text' },
-    { name: 'collateralValue', type: 'number' },
-    // Penalty rules
-    { name: 'penaltyBeforeMinTenor', type: 'number', defaultValue: 10 }, // %
-    { name: 'penaltyAfterMinTenor', type: 'number', defaultValue: 2.5 }, // %
-    { name: 'minTenorMonths', type: 'number', defaultValue: 36 },
-    { name: 'minPartialPrepayment', type: 'number', defaultValue: 6 }, // x angsuran
-  ],
-};
-```
+### 3.2 KprRateTiers (`kpr-rate-tiers`)
 
-### 3.3 KprRateTiers
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| loan | relationship | ✓ | Relasi ke kpr-loans |
+| tierOrder | number | ✓ | Urutan tier (1, 2, 3) |
+| startMonth | number | ✓ | Mulai bulan ke- |
+| endMonth | number | ✓ | Sampai bulan ke- |
+| ratePct | number | ✓ | Suku bunga (% p.a.) |
+| installment | number | ✓ | Angsuran per bulan (Rp) |
 
-```typescript
-export const KprRateTiers: CollectionConfig = {
-  slug: 'kpr-rate-tiers',
-  admin: { group: 'KPR' },
-  fields: [
-    { name: 'loan', type: 'relationship', relationTo: 'kpr-loans', required: true },
-    { name: 'tierOrder', type: 'number', required: true },
-    { name: 'startMonth', type: 'number', required: true },
-    { name: 'endMonth', type: 'number', required: true },
-    { name: 'ratePct', type: 'number', required: true }, // 4.75, 8.00, 10.25
-    { name: 'installment', type: 'number', required: true }, // 2681900, 3367400, 3815600
-  ],
-};
-```
+### 3.3 KprSchedule (`kpr-schedule`)
 
-### 3.4 KprSchedule
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| loan | relationship | ✓ | Relasi ke kpr-loans |
+| monthNumber | number | ✓ | Bulan ke- (1-240) |
+| calendarDate | date | ✓ | Tanggal jatuh tempo |
+| principalPortion | number | ✓ | Angsuran pokok (Rp) |
+| interestPortion | number | ✓ | Angsuran bunga (Rp) |
+| totalInstallment | number | ✓ | Total angsuran (Rp) |
+| outstandingBalance | number | ✓ | Saldo pinjaman (Rp) |
+| interestRate | number | ✓ | Suku bunga (%) |
+| **Status Pembayaran** (collapsible) | | | |
+| isPaid | checkbox | | Sudah dibayar |
+| paidDate | date | | Tanggal bayar |
+| paidAmount | number | | Jumlah dibayar (Rp) |
+| notes | textarea | | Catatan |
 
-```typescript
-export const KprSchedule: CollectionConfig = {
-  slug: 'kpr-schedule',
-  admin: { group: 'KPR' },
-  fields: [
-    { name: 'loan', type: 'relationship', relationTo: 'kpr-loans', required: true },
-    { name: 'monthNumber', type: 'number', required: true },
-    { name: 'calendarDate', type: 'date', required: true },
-    { name: 'principalPortion', type: 'number', required: true },
-    { name: 'interestPortion', type: 'number', required: true },
-    { name: 'totalInstallment', type: 'number', required: true },
-    { name: 'outstandingBalance', type: 'number', required: true },
-    { name: 'interestRate', type: 'number', required: true },
-    { name: 'isPaid', type: 'checkbox', defaultValue: false },
-    { name: 'paidDate', type: 'date' },
-    { name: 'paidAmount', type: 'number' },
-    { name: 'notes', type: 'textarea' },
-  ],
-};
-```
+Index: unique(`loan`, `monthNumber`)
 
-### 3.5 KprExtraPayments
+### 3.4 KprExtraPayments (`kpr-extra-payments`)
 
-```typescript
-export const KprExtraPayments: CollectionConfig = {
-  slug: 'kpr-extra-payments',
-  admin: { group: 'KPR' },
-  fields: [
-    { name: 'loan', type: 'relationship', relationTo: 'kpr-loans', required: true },
-    { name: 'paymentDate', type: 'date', required: true },
-    { name: 'amount', type: 'number', required: true },
-    { name: 'note', type: 'text' },
-  ],
-};
-```
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| loan | relationship | ✓ | Relasi ke kpr-loans |
+| paymentDate | date | ✓ | Tanggal pembayaran |
+| amount | number | ✓ | Jumlah (Rp) |
+| note | text | | Catatan |
 
-### 3.6 KprReminders
+### 3.5 KprReminders (`kpr-reminders`)
 
-```typescript
-export const KprReminders: CollectionConfig = {
-  slug: 'kpr-reminders',
-  admin: { group: 'KPR' },
-  fields: [
-    { name: 'loan', type: 'relationship', relationTo: 'kpr-loans', required: true },
-    { name: 'email', type: 'email', required: true },
-    { name: 'reminderDay', type: 'number', required: true, min: 1, max: 28 },
-    { name: 'isActive', type: 'checkbox', defaultValue: true },
-    { name: 'lastSentAt', type: 'date' },
-  ],
-};
-```
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| loan | relationship | ✓ | Relasi ke kpr-loans |
+| email | email | ✓ | Email penerima |
+| reminderDay | number | ✓ | Hari reminder (1-28) |
+| isActive | checkbox | | Aktif (default: true) |
+| lastSentAt | date | | Terakhir dikirim (read-only) |
 
-### 3.7 KprSimulations
+### 3.6 KprSimulations (`kpr-simulations`)
 
-```typescript
-export const KprSimulations: CollectionConfig = {
-  slug: 'kpr-simulations',
-  admin: { group: 'KPR' },
-  fields: [
-    { name: 'loan', type: 'relationship', relationTo: 'kpr-loans', required: true },
-    { name: 'name', type: 'text', required: true },
-    { name: 'scenarioType', type: 'select', options: [
-      { label: 'Early Full Payoff', value: 'early_payoff' },
-      { label: 'Extra Payment', value: 'extra_payment' },
-      { label: 'Refinance', value: 'refinance' },
-    ]},
-    { name: 'params', type: 'json', required: true },
-    { name: 'results', type: 'json', required: true },
-  ],
-};
-```
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| loan | relationship | ✓ | Relasi ke kpr-loans |
+| name | text | ✓ | Nama skenario |
+| scenarioType | select | ✓ | early_payoff / extra_payment / refinance |
+| params | json | ✓ | Parameter input |
+| results | json | ✓ | Hasil perhitungan |
 
 ---
 
-## 4. Custom Endpoints (Payload Endpoints API)
+## 4. Custom Endpoints
 
-Payload CMS mendukung custom endpoints via `endpoints` config di `payload.config.ts`:
+Ditambahkan di `payload.config.ts` sebagai custom endpoints:
 
 ```typescript
-// apps/cms/src/payload.config.ts
-export default buildConfig({
-  // ... existing config
-  endpoints: [
-    // Current KPR status (computed)
-    {
-      path: '/kpr/status',
-      method: 'get',
-      handler: async (req) => { /* ... */ },
-    },
-    // Run simulation
-    {
-      path: '/kpr/simulate/early-payoff',
-      method: 'post',
-      handler: async (req) => { /* ... */ },
-    },
-    {
-      path: '/kpr/simulate/extra-payment',
-      method: 'post',
-      handler: async (req) => { /* ... */ },
-    },
-    // Financial insights
-    {
-      path: '/kpr/insights',
-      method: 'get',
-      handler: async (req) => { /* ... */ },
-    },
-    // Trigger email reminder
-    {
-      path: '/kpr/send-reminder',
-      method: 'post',
-      handler: async (req) => { /* ... */ },
-    },
-    // Seed data from CSV
-    {
-      path: '/kpr/seed',
-      method: 'post',
-      handler: async (req) => { /* ... */ },
-    },
-  ],
-});
+endpoints: [
+  { path: '/kpr/status', method: 'get', handler: statusHandler },
+  { path: '/kpr/simulate/early-payoff', method: 'post', handler: earlyPayoffHandler },
+  { path: '/kpr/simulate/extra-payment', method: 'post', handler: extraPaymentHandler },
+  { path: '/kpr/insights', method: 'get', handler: insightsHandler },
+  { path: '/kpr/send-reminder', method: 'post', handler: sendReminderHandler },
+  { path: '/kpr/seed', method: 'post', handler: seedHandler },
+]
 ```
 
 ---
 
 ## 5. Features
 
-### 5.1 Dashboard (Route: /)
-
-**Summary Cards:**
-- Total Pinjaman: Rp 415,000,000
-- Sisa Pokok: Rp 378,443,227 (computed from schedule)
-- Total Bunga Dibayar: Rp 56,425,862 (computed)
-- Progress: 8.8% terbayar
-- Angsuran Bulan Ini: Rp 2,681,900
-- Bunga Aktif: 4.75% (Fase 1)
-
-**Visual Elements:**
+### 5.1 Dashboard (/)
+- Summary cards: sisa pokok, total bunga, progress, angsuran bulan ini
 - Progress bar segmented per fase bunga
+- Charts: outstanding balance, bunga vs pokok
 - Countdown ke fase berikutnya
-- Donut chart: pokok vs bunga yang sudah dibayar
-- Area chart: outstanding balance over time
 
-### 5.2 Tabel Angsuran (Route: /schedule)
+### 5.2 Tabel Angsuran (/schedule)
+- TanStack Table: 240 bulan, sort, filter, column visibility
+- Row highlighting: bulan berjalan, fase bunga (color coded)
+- Toggle is_paid per row
+- Bulk mark payments
+- Charts: area chart, line chart, bar chart
 
-**TanStack Table:**
-- 240 rows dengan kolom: Bulan, Tanggal, Pokok, Bunga, Total, Saldo, Rate, Status
-- Row highlighting: bulan berjalan (current), fase bunga (color coded)
-- Sort, filter, column visibility toggle
-- Toggle "is_paid" per row (checkbox)
-- Bulk mark: "Tandai semua sampai bulan X"
-- Virtual scrolling atau pagination
+### 5.3 Simulator (/simulator)
+- Early payoff: slider bulan, hitung penalti, hemat
+- Extra payment: input nominal, hitung tenor baru
+- Side-by-side comparison
+- Simpan skenario ke CMS
 
-**Charts:**
-- Stacked area: pokok vs bunga per bulan
-- Line: outstanding balance
-- Bar: bunga vs pokok per tahun
+### 5.4 Insights (/insights)
+- Opportunity cost table
+- Milestone alerts
+- Rekomendasi otomatis
 
-### 5.3 Payment Simulator (Route: /simulator)
-
-**Tab 1: Early Full Payoff**
-- Slider/input: target bulan pelunasan (1-240)
-- Computed output:
-  - Sisa pokok di bulan tsb
-  - Penalti (10% atau 2.5%)
-  - Total ke bank
-  - Grand total cost
-  - Hemat vs tenor penuh
-  - Break-even penalti
-
-**Tab 2: Extra Payment**
-- Input: nominal extra per bulan, mulai bulan ke-
-- Computed output:
-  - Tenor baru (lebih cepat X bulan)
-  - Bunga yang dihemat
-  - Side-by-side chart vs original
-
-**Tab 3: Comparison**
-- Tabel perbandingan semua skenario tersimpan
-- Highlight skenario terbaik
-
-### 5.4 Financial Insights (Route: /insights)
-
-**Opportunity Cost Table:**
-| Instrumen | Return | vs Bunga KPR | Verdict |
-|-----------|--------|--------------|---------|
-| Deposito | 5.2% | vs 4.75% | KPR lebih murah |
-| Obligasi ORI | 6.5% | vs 4.75% | KPR lebih murah |
-| Reksadana | 10% | vs 10.25% | Sebanding |
-
-**Milestones:**
-- "3 bulan lagi bunga naik ke 8%"
-- "Penalti pelunasan sudah turun ke 2.5%"
-- "Anda sudah membayar 25% pokok"
-
-**Recommendations:**
-- Kapan waktu terbaik melunasi
-- Strategi optimal berdasarkan posisi saat ini
-
-### 5.5 Settings (Route: /settings)
-
-- Edit data KPR
-- Kelola rate tiers
-- Konfigurasi email reminder
-- Manual bulk mark payments
+### 5.5 Settings (/settings)
+- Konfigurasi reminder
 - Export CSV
 
-### 5.6 Email Reminders
+---
 
-**Flow:**
-1. User konfigurasi reminder di Settings (email, hari)
-2. Payload cron job / scheduled task check setiap hari
-3. Jika hari ini = reminder day, kirim email via Nodemailer (Google SMTP)
-4. Email content: angsuran bulan ini, sisa pokok, progress, insight
+## 6. Frontend Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Build | Vite 6 |
+| UI | React 19 |
+| Routing | TanStack Router |
+| Data Fetching | TanStack Query |
+| Data Tables | TanStack Table |
+| Styling | TailwindCSS 4 + shadcn/ui |
+| Charts | Recharts |
+| Validation | Zod (shared schemas) |
+| API Client | fetch + TanStack Query |
 
 ---
 
-## 6. Auth Strategy
+## 7. API Client Pattern
 
-**Payload CMS Built-in Auth:**
-- JWT-based authentication
-- API key support (untuk frontend SPA)
-- Admin panel login di `/admin`
-- Single user: satu akun Users saja
+Frontend memanggil Payload REST API yang sudah ada:
 
-**Frontend Auth Flow:**
-1. User login via `/admin` (Payload admin panel)
-2. Atau: Frontend SPA punya login page sendiri yang panggil Payload REST API
-3. JWT token disimpan di localStorage/cookie
-4. Semua API calls menyertakan Bearer token
+```typescript
+// lib/api.ts
+const CMS_URL = import.meta.env.VITE_CMS_URL; // cms.danipras.dev
 
-**Recommendation:** Gunakan Payload admin panel untuk manage data (CRUD), dan frontend SPA untuk view/analyze data. Auth di SPA menggunakan Payload's REST auth endpoint.
-
----
-
-## 7. Tech Stack (Final)
-
-| Layer | Technology | Version |
-|-------|-----------|---------|
-| **Frontend** | React + Vite | 19.x / 6.x |
-| **Routing** | TanStack Router | latest |
-| **Data Fetching** | TanStack Query | latest |
-| **Data Tables** | TanStack Table | latest |
-| **Styling** | TailwindCSS + shadcn/ui | 4.x |
-| **Charts** | Recharts | latest |
-| **Backend (CMS)** | Payload CMS | 3.35+ |
-| **Framework** | Next.js | 15.4.x |
-| **Database** | MongoDB Atlas | shared cluster |
-| **Email** | Nodemailer | via Google SMTP |
-| **Monorepo** | Turborepo + pnpm | same as portfolio |
-| **Container** | Docker + K8s | same pattern |
-| **Ingress** | Traefik IngressRoute | monetalis.danipras.dev |
-| **Registry** | GHCR | ghcr.io/blacknvcone/vates-monitalis |
+// Payload REST API auto-generated:
+// GET  /api/kpr-loans          → list loans
+// GET  /api/kpr-loans/:id      → single loan
+// GET  /api/kpr-schedule       → list schedule entries
+// PATCH /api/kpr-schedule/:id  → update (e.g., mark as paid)
+// POST /api/kpr-simulate/early-payoff → custom endpoint
+// etc.
+```
 
 ---
 
 ## 8. Deployment
 
-### 8.1 K8s Namespace
+### 8.1 Monetalis Frontend (new)
 
 ```yaml
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: monetalis
+# K8s: monetalis namespace
+- Deployment: monetalis-web (Vite static + nginx)
+- Service: monetalis-web
+- IngressRoute: monetalis.danipras.dev → monetalis-web:80
 ```
 
-### 8.2 Traefik IngressRoute
+### 8.2 Shared CMS (existing)
 
-```yaml
-apiVersion: traefik.io/v1alpha1
-kind: IngressRoute
-metadata:
-  name: monetalis-ingressroute
-  namespace: monetalis
-spec:
-  entryPoints:
-    - websecure
-  routes:
-    - match: Host(`monetalis.danipras.dev`)
-      kind: Rule
-      services:
-        - name: monetalis-web
-          port: 80
-    - match: Host(`monetalis.danipras.dev`) && PathPrefix(`/api`, `/admin`)
-      kind: Rule
-      services:
-        - name: monetalis-cms
-          port: 80
-  tls:
-    certResolver: letsencrypt
-```
+Tidak ada perubahan deployment. CMS tetap di:
+- `cms.danipras.dev` (existing IngressRoute)
+- Namespace: `cms-payload`
 
-### 8.3 Environment Variables
-
-```env
-# CMS (Payload)
-DATABASE_URI=mongodb+srv://user:***@cluster.mongodb.net/monetalis
-PAYLOAD_SECRET=<generate-random>
-PAYLOAD_PUBLIC_SERVER_URL=https://monetalis.danipras.dev
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=dani.prasetya@gmail.com
-SMTP_PASS=<app-password>
-
-# Web (Frontend)
-VITE_API_URL=https://monetalis.danipras.dev/api
-```
+CORS di CMS sudah dikonfigurasi untuk允许 monetalis domain.
 
 ---
 
 ## 9. Implementation Phases
 
-### Phase 1: Foundation
-- [ ] Monorepo setup (Turborepo + pnpm)
-- [ ] Payload CMS setup (collections + seed data)
-- [ ] Frontend SPA skeleton (TanStack Router)
-- [ ] Dashboard page with summary cards
-- [ ] Auth integration
+### Phase 1: CMS Collections ✅
+- [x] Create monetalis collection files
+- [x] Update payload.config.ts
+- [ ] Seed data from CSV
 
-### Phase 2: Core Features
+### Phase 2: Frontend Foundation
+- [ ] Vite + React + TanStack setup
+- [ ] API client (Payload REST)
+- [ ] Auth integration
+- [ ] Dashboard page
+
+### Phase 3: Core Features
 - [ ] Tabel Angsuran (TanStack Table)
 - [ ] Charts & visualizations
-- [ ] Payment status tracking (is_paid toggle)
-- [ ] Custom endpoint: /kpr/status
+- [ ] Payment status tracking
 
-### Phase 3: Simulator
+### Phase 4: Simulator & Insights
 - [ ] Early payoff simulator
 - [ ] Extra payment simulator
-- [ ] Scenario comparison
-- [ ] Custom endpoints: /kpr/simulate/*
+- [ ] Financial insights
 
-### Phase 4: Insights & Email
-- [ ] Financial insights engine
-- [ ] Milestone alerts
-- [ ] Email reminder system (Nodemailer)
-- [ ] Custom endpoints: /kpr/insights, /kpr/send-reminder
-
-### Phase 5: Deploy
-- [ ] Dockerfile (web + cms)
-- [ ] K8s manifests
-- [ ] CI/CD (GitHub Actions → GHCR)
+### Phase 5: Email & Deploy
+- [ ] Email reminder system
+- [ ] Docker + K8s manifests
 - [ ] Traefik IngressRoute
-- [ ] Domain setup: monetalis.danipras.dev
-
----
-
-## 10. Open Questions (Resolved)
-
-| Question | Decision |
-|----------|----------|
-| Auth? | ✅ Payload built-in JWT + API key |
-| Multi-loan? | 🔜 Future, focus single KPR now |
-| Payload CMS integration? | ✅ Payload AS backend (no separate API) |
-| Database? | ✅ MongoDB Atlas (shared cluster, separate DB) |
-| Domain? | ✅ monetalis.danipras.dev via Traefik |
+- [ ] CORS configuration
