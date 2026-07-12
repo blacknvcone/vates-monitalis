@@ -284,6 +284,113 @@ function ReminderSection() {
   );
 }
 
+function UsersSection() {
+  const [users, setUsers] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [testStatus, setTestStatus] = useState({});
+  const loanId = getLoanId();
+
+  const handleTestUserEmail = async (email, type) => {
+    const key = `${email}-${type}`;
+    setTestStatus((prev) => ({ ...prev, [key]: 'sending' }));
+    try {
+      const token = localStorage.getItem('monetalis_token');
+      const endpoint = type === 'payment' ? '/api/kpr/send-payment-reminder-test' : '/api/kpr/send-monthly-insight-test';
+      const res = await fetch(`${CMS_URL}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ email, loanId }),
+      });
+      if (!res.ok) throw new Error('Failed');
+      setTestStatus((prev) => ({ ...prev, [key]: 'sent' }));
+      setTimeout(() => setTestStatus((prev) => ({ ...prev, [key]: '' })), 3000);
+    } catch {
+      setTestStatus((prev) => ({ ...prev, [key]: 'error' }));
+      setTimeout(() => setTestStatus((prev) => ({ ...prev, [key]: '' })), 5000);
+    }
+  };
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      const token = localStorage.getItem('monetalis_token');
+      if (!token || !loanId) { setIsLoading(false); return; }
+      try {
+        const res = await fetch(`${CMS_URL}/api/monetalis-users?where[loan][equals]=${loanId}&limit=50`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setUsers(data.docs.map((u) => ({ id: u.id, email: u.email, name: u.name, role: u.role, isActive: u.isActive })));
+        }
+      } catch (err) { console.error('Failed to fetch users:', err); }
+      finally { setIsLoading(false); }
+    };
+    fetchUsers();
+  }, [loanId]);
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <div className="flex items-center gap-2 mb-4">
+        <User size={18} className="text-primary" />
+        <h3 className="text-base font-semibold text-gray-900">Users dengan Akses</h3>
+      </div>
+      <p className="text-sm text-gray-500 mb-4">Semua user yang memiliki akses ke data KPR ini.</p>
+
+      {isLoading ? (
+        <div className="flex items-center gap-2 py-4">
+          <Loader2 size={16} className="animate-spin text-gray-400" />
+          <p className="text-sm text-gray-400">Memuat users...</p>
+        </div>
+      ) : users.length === 0 ? (
+        <p className="text-sm text-gray-400 text-center py-4">Tidak ada user ditemukan.</p>
+      ) : (
+        <div className="space-y-2">
+          {users.map((u) => {
+            const paymentSt = testStatus[`${u.email}-payment`];
+            const insightSt = testStatus[`${u.email}-insight`];
+            return (
+              <div key={u.id} className="p-3 bg-gray-50 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${u.isActive ? 'bg-emerald-500' : 'bg-gray-400'}`}>
+                      {u.name.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{u.name}</p>
+                      <p className="text-xs text-gray-500">{u.email}</p>
+                    </div>
+                  </div>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${u.role === 'admin' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
+                    {u.role}
+                  </span>
+                </div>
+                <div className="flex gap-2 mt-2 pl-11">
+                  <button
+                    onClick={() => handleTestUserEmail(u.email, 'payment')}
+                    disabled={paymentSt === 'sending'}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100"
+                  >
+                    {paymentSt === 'sending' ? <Loader2 size={12} className="animate-spin" /> : paymentSt === 'sent' ? <CheckCircle size={12} /> : paymentSt === 'error' ? <AlertCircle size={12} /> : <Send size={12} />}
+                    {paymentSt === 'sending' ? 'Mengirim...' : paymentSt === 'sent' ? 'Terkirim!' : paymentSt === 'error' ? 'Gagal' : 'Kirim Pengingat'}
+                  </button>
+                  <button
+                    onClick={() => handleTestUserEmail(u.email, 'insight')}
+                    disabled={insightSt === 'sending'}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
+                  >
+                    {insightSt === 'sending' ? <Loader2 size={12} className="animate-spin" /> : insightSt === 'sent' ? <CheckCircle size={12} /> : insightSt === 'error' ? <AlertCircle size={12} /> : <Send size={12} />}
+                    {insightSt === 'sending' ? 'Mengirim...' : insightSt === 'sent' ? 'Terkirim!' : insightSt === 'error' ? 'Gagal' : 'Kirim Laporan'}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LoanInfoSection() {
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6">
