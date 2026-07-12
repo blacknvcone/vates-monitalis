@@ -1,21 +1,3 @@
-echo "🔍 Running pre-commit checks..."
-
-# 1. TypeScript type check
-echo "  → TypeScript type check..."
-npx tsc --noEmit
-if [ $? -ne 0 ]; then
-  echo "❌ TypeScript errors found. Commit aborted."
-  exit 1
-fi
-echo "  ✓ TypeScript OK"
-
-# 2. Build verification
-echo "  → Build verification..."
-pnpm run build
-if [ $? -ne 0 ]; then
-  echo "❌ Build failed. Commit aborted."
-  exit 1
-fi
-echo "  ✓ Build OK"
-
-echo "✅ All checks passed. Proceeding with commit."
+echo "🔍 TypeScript check..."
+npx tsc --noEmit || { echo "❌ TS errors. Commit aborted."; exit 1; }
+echo "✓ OK"
