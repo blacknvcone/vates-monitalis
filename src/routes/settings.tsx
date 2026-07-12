@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Bell,
   Mail,
@@ -15,9 +15,13 @@ import {
   Send,
   CheckCircle,
   Loader2,
+  AlertCircle,
 } from 'lucide-react';
 import { formatIDR } from '@/lib/format';
 import { useAuth } from '@/lib/auth';
+import { getLoanId } from '@/lib/api';
+
+const CMS_URL = import.meta.env.VITE_CMS_URL || 'http://localhost:3001';
 
 // ============================================================
 // Types
@@ -34,60 +38,115 @@ interface Reminder {
   lastMonthlyInsightSent: string | null;
 }
 
-function useMockReminders(userEmail?: string) {
-  const [reminders, setReminders] = useState<Reminder[]>([
-    {
-      id: '1',
-      email: userEmail || '',
-      reminderDay: 1,
-      isActive: true,
-      sendPaymentReminder: true,
-      sendMonthlyInsight: true,
-      lastPaymentReminderSent: '2026-07-01',
-      lastMonthlyInsightSent: '2026-07-01',
-    },
-  ]);
+// ============================================================
+// Hooks
+// ============================================================
 
-  const addReminder = (email: string, day: number) => {
-    setReminders((prev) => [
-      ...prev,
-      {
-        id: String(Date.now()),
-        email,
-        reminderDay: day,
-        isActive: true,
-        sendPaymentReminder: true,
-        sendMonthlyInsight: true,
-        lastPaymentReminderSent: null,
-        lastMonthlyInsightSent: null,
-      },
-    ]);
+function useReminders() {
+  const { user } = useAuth();
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const token = localStorage.getItem('monetalis_token');
+  const loanId = getLoanId();
+
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`,
   };
 
-  const toggleReminder = (id: string) => {
-    setReminders((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, isActive: !r.isActive } : r)),
-    );
+  // Fetch reminders from CMS
+  const fetchReminders = useCallback(async () => {
+    if (!token || !loanId) return;
+    try {
+      const res = await fetch(`${CMS_URL}/api/kpr-reminders?where[loan][equals]=${loanId}`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        setReminders(data.docs.map((d: any) => ({
+          id: d.id,
+          email: d.email,
+          reminderDay: d.reminderDay,
+          isActive: d.isActive,
+          sendPaymentReminder: d.sendPaymentReminder ?? true,
+          sendMonthlyInsight: d.sendMonthlyInsight ?? true,
+          lastPaymentReminderSent: d.lastPaymentReminderSent || null,
+          lastMonthlyInsightSent: d.lastMonthlyInsightSent || null,
+        })));
+      }
+    } catch (err) {
+      console.error('Failed to fetch reminders:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [token, loanId]);
+
+  // Create reminder
+  const createReminder = async (email: string, day: number) => {
+    try {
+      const res = await fetch(`${CMS_URL}/api/kpr-reminders`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          loan: loanId,
+          email,
+          reminderDay: day,
+          isActive: true,
+          sendPaymentReminder: true,
+          sendMonthlyInsight: true,
+        }),
+      });
+      if (res.ok) {
+        await fetchReminders();
+      } else {
+        const err = await res.json();
+        setError(err.errors?.[0]?.message || 'Gagal membuat reminder');
+      }
+    } catch (err) {
+      setError('Gagal membuat reminder');
+    }
   };
 
-  const toggleType = (id: string, type: 'sendPaymentReminder' | 'sendMonthlyInsight') => {
-    setReminders((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, [type]: !r[type] } : r)),
-    );
+  // Update reminder
+  const updateReminder = async (id: string, data: Partial<Reminder>) => {
+    try {
+      await fetch(`${CMS_URL}/api/kpr-reminders/${id}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify(data),
+      });
+      await fetchReminders();
+    } catch (err) {
+      console.error('Failed to update reminder:', err);
+    }
   };
 
-  const removeReminder = (id: string) => {
-    setReminders((prev) => prev.filter((r) => r.id !== id));
+  // Delete reminder
+  const deleteReminder = async (id: string) => {
+    try {
+      await fetch(`${CMS_URL}/api/kpr-reminders/${id}`, {
+        method: 'DELETE',
+        headers,
+      });
+      await fetchReminders();
+    } catch (err) {
+      console.error('Failed to delete reminder:', err);
+    }
   };
 
-  const updateLastSent = (id: string, type: 'lastPaymentReminderSent' | 'lastMonthlyInsightSent') => {
-    const today = new Date().toISOString().split('T')[0];
-    setReminders((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, [type]: today } : r)),
-    );
-  };
+  useEffect(() => {
+    fetchReminders();
+  }, [fetchReminders]);
 
-  return { reminders, addReminder, toggleReminder, toggleType, removeReminder, updateLastSent };
+  return {
+    reminders,
+    isLoading,
+    error,
+    createReminder,
+    updateReminder,
+    deleteReminder,
+    refetch: fetchReminders,
+  };
 }
 
 // ============================================================
@@ -96,14 +155,14 @@ function useMockReminders(userEmail?: string) {
 
 function ReminderSection() {
   const { user } = useAuth();
-  const { reminders, addReminder, toggleReminder, toggleType, removeReminder, updateLastSent } = useMockReminders(user?.email);
+  const { reminders, isLoading, error, createReminder, updateReminder, deleteReminder } = useReminders();
   const [newEmail, setNewEmail] = useState('');
   const [newDay, setNewDay] = useState(1);
   const [testStatus, setTestStatus] = useState<Record<string, string>>({});
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (newEmail && newDay >= 1 && newDay <= 28) {
-      addReminder(newEmail, newDay);
+      await createReminder(newEmail, newDay);
       setNewEmail('');
       setNewDay(1);
     }
@@ -115,36 +174,26 @@ function ReminderSection() {
 
     try {
       const token = localStorage.getItem('monetalis_token');
-      const user = JSON.parse(localStorage.getItem('monetalis_user') || '{}');
+      const loanId = getLoanId();
       const endpoint = type === 'payment'
         ? '/api/kpr/send-payment-reminder'
         : '/api/kpr/send-monthly-insight';
 
-      const res = await fetch(`${import.meta.env.VITE_CMS_URL}${endpoint}`, {
+      const res = await fetch(`${CMS_URL}${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          reminderId,
-          loanId: user.loanId,
-        }),
+        body: JSON.stringify({ reminderId, loanId }),
       });
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || `HTTP ${res.status}`);
+        throw new Error(err.errors?.[0]?.message || `HTTP ${res.status}`);
       }
 
       setTestStatus((prev) => ({ ...prev, [key]: 'sent' }));
-
-      if (type === 'payment') {
-        updateLastSent(reminderId, 'lastPaymentReminderSent');
-      } else {
-        updateLastSent(reminderId, 'lastMonthlyInsightSent');
-      }
-
       setTimeout(() => setTestStatus((prev) => ({ ...prev, [key]: '' })), 3000);
     } catch (err: any) {
       console.error('Test email failed:', err);
@@ -152,6 +201,21 @@ function ReminderSection() {
       setTimeout(() => setTestStatus((prev) => ({ ...prev, [key]: '' })), 5000);
     }
   };
+
+  const handleToggle = async (id: string, field: string, value: boolean) => {
+    await updateReminder(id, { [field]: value } as any);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="bg-white rounded-xl border border-gray-200 p-6">
+        <div className="flex items-center gap-2">
+          <Loader2 size={18} className="animate-spin text-primary" />
+          <p className="text-sm text-gray-500">Memuat reminder...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6">
@@ -161,8 +225,14 @@ function ReminderSection() {
       </div>
       <p className="text-sm text-gray-500 mb-4">
         Konfigurasi pengingat angsuran dan laporan bulanan via email.
-        Dua jenis email dikirim setiap tanggal yang dipilih:
       </p>
+
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+          <AlertCircle size={16} className="text-red-500 mt-0.5 flex-shrink-0" />
+          <p className="text-sm text-red-700">{error}</p>
+        </div>
+      )}
 
       {/* Email types info */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
@@ -188,6 +258,11 @@ function ReminderSection() {
 
       {/* Existing reminders */}
       <div className="space-y-3 mb-6">
+        {reminders.length === 0 && (
+          <p className="text-sm text-gray-400 text-center py-4">
+            Belum ada reminder. Tambahkan di bawah.
+          </p>
+        )}
         {reminders.map((reminder) => {
           const paymentKey = `${reminder.id}-payment`;
           const insightKey = `${reminder.id}-insight`;
@@ -201,7 +276,7 @@ function ReminderSection() {
             >
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
-                  <button onClick={() => toggleReminder(reminder.id)}>
+                  <button onClick={() => handleToggle(reminder.id, 'isActive', !reminder.isActive)}>
                     {reminder.isActive ? (
                       <ToggleRight size={24} className="text-emerald-500" />
                     ) : (
@@ -216,7 +291,7 @@ function ReminderSection() {
                   </div>
                 </div>
                 <button
-                  onClick={() => removeReminder(reminder.id)}
+                  onClick={() => deleteReminder(reminder.id)}
                   className="text-gray-400 hover:text-red-500 p-1"
                 >
                   <Trash2 size={14} />
@@ -229,7 +304,7 @@ function ReminderSection() {
                   <input
                     type="checkbox"
                     checked={reminder.sendPaymentReminder}
-                    onChange={() => toggleType(reminder.id, 'sendPaymentReminder')}
+                    onChange={() => handleToggle(reminder.id, 'sendPaymentReminder', !reminder.sendPaymentReminder)}
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
                   <span className="text-xs text-gray-600">Pengingat Pembayaran</span>
@@ -238,7 +313,7 @@ function ReminderSection() {
                   <input
                     type="checkbox"
                     checked={reminder.sendMonthlyInsight}
-                    onChange={() => toggleType(reminder.id, 'sendMonthlyInsight')}
+                    onChange={() => handleToggle(reminder.id, 'sendMonthlyInsight', !reminder.sendMonthlyInsight)}
                     className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
                   />
                   <span className="text-xs text-gray-600">Laporan Bulanan</span>
@@ -256,10 +331,12 @@ function ReminderSection() {
                     <Loader2 size={12} className="animate-spin" />
                   ) : paymentStatus === 'sent' ? (
                     <CheckCircle size={12} />
+                  ) : paymentStatus === 'error' ? (
+                    <AlertCircle size={12} />
                   ) : (
                     <Send size={12} />
                   )}
-                  {paymentStatus === 'sending' ? 'Mengirim...' : paymentStatus === 'sent' ? 'Terkirim!' : 'Test Pengingat'}
+                  {paymentStatus === 'sending' ? 'Mengirim...' : paymentStatus === 'sent' ? 'Terkirim!' : paymentStatus === 'error' ? 'Gagal' : 'Test Pengingat'}
                 </button>
                 <button
                   onClick={() => handleTestEmail(reminder.id, 'insight')}
@@ -270,10 +347,12 @@ function ReminderSection() {
                     <Loader2 size={12} className="animate-spin" />
                   ) : insightStatus === 'sent' ? (
                     <CheckCircle size={12} />
+                  ) : insightStatus === 'error' ? (
+                    <AlertCircle size={12} />
                   ) : (
                     <Send size={12} />
                   )}
-                  {insightStatus === 'sending' ? 'Mengirim...' : insightStatus === 'sent' ? 'Terkirim!' : 'Test Laporan'}
+                  {insightStatus === 'sending' ? 'Mengirim...' : insightStatus === 'sent' ? 'Terkirim!' : insightStatus === 'error' ? 'Gagal' : 'Test Laporan'}
                 </button>
               </div>
 
@@ -307,7 +386,7 @@ function ReminderSection() {
                 type="email"
                 value={newEmail}
                 onChange={(e) => setNewEmail(e.target.value)}
-                placeholder="email@example.com"
+                placeholder={user?.email || 'email@example.com'}
                 className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
               />
             </div>
@@ -329,7 +408,7 @@ function ReminderSection() {
           <div className="flex items-end">
             <button
               onClick={handleAdd}
-              disabled={!newEmail}
+              disabled={!newEmail && !user?.email}
               className="flex items-center gap-1.5 px-4 py-2 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary-light disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               <Plus size={14} />
@@ -338,6 +417,86 @@ function ReminderSection() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function UsersSection() {
+  const [users, setUsers] = useState<Array<{ id: string; email: string; name: string; role: string; isActive: boolean }>>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const loanId = getLoanId();
+
+  useEffect(() => {
+    const fetchUsers = async () => {
+      const token = localStorage.getItem('monetalis_token');
+      if (!token || !loanId) return;
+      try {
+        const res = await fetch(`${CMS_URL}/api/monetalis-users?where[loan][equals]=${loanId}&limit=50`, {
+          headers: { 'Authorization': `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setUsers(data.docs.map((u: any) => ({
+            id: u.id,
+            email: u.email,
+            name: u.name,
+            role: u.role,
+            isActive: u.isActive,
+          })));
+        }
+      } catch (err) {
+        console.error('Failed to fetch users:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchUsers();
+  }, [loanId]);
+
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-6">
+      <div className="flex items-center gap-2 mb-4">
+        <User size={18} className="text-primary" />
+        <h3 className="text-base font-semibold text-gray-900">Users dengan Akses</h3>
+      </div>
+      <p className="text-sm text-gray-500 mb-4">
+        Semua user yang memiliki akses ke data KPR ini.
+      </p>
+
+      {isLoading ? (
+        <div className="flex items-center gap-2 py-4">
+          <Loader2 size={16} className="animate-spin text-gray-400" />
+          <p className="text-sm text-gray-400">Memuat users...</p>
+        </div>
+      ) : users.length === 0 ? (
+        <p className="text-sm text-gray-400 text-center py-4">Tidak ada user ditemukan.</p>
+      ) : (
+        <div className="space-y-2">
+          {users.map((u) => (
+            <div key={u.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div className="flex items-center gap-3">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${u.isActive ? 'bg-emerald-500' : 'bg-gray-400'}`}>
+                  {u.name.charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{u.name}</p>
+                  <p className="text-xs text-gray-500">{u.email}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`text-xs px-2 py-0.5 rounded-full ${u.role === 'admin' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'}`}>
+                  {u.role}
+                </span>
+                {!u.isActive && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-600">
+                    Nonaktif
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -455,6 +614,7 @@ function SettingsPage() {
       </div>
 
       <ReminderSection />
+      <UsersSection />
       <LoanInfoSection />
       <ExportSection />
       <SystemInfoSection />
