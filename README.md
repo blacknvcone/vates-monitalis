@@ -142,23 +142,44 @@ Push tag `v*` untuk trigger GitHub Actions:
 git tag -a v1.0.1 -m "release" && git push origin v1.0.1
 ```
 
-### K8s
+### K8s Manifests
 
-Manifests di-deploy di [obelix](https://github.com/blacknvcone/obelix) repo:
+Deployment manifests di-deploy di repository terpisah: [obelix](https://github.com/blacknvcone/obelix)
+
+> **Repo:** `github.com/blacknvcone/obelix`
+> **Path:** `monetalis/`
+
+| Manifest | Resource | Description |
+|----------|----------|-------------|
+| `monetalis-namespace.yaml` | Namespace | Namespace `monetalis` di K8s cluster |
+| `monetalis-web-deployment.yaml` | Deployment | Container nginx + static SPA, nodeSelector `heimdall-vm`, image dari GHCR |
+| `monetalis-web-service.yaml` | Service | ClusterIP, port 80 → 80, ipFamilyPolicy SingleStack/IPv4 |
+| `monetalis-web-ingressroute.yaml` | IngressRoute | Traefik routing `monetalis.danipras.dev` → service, TLS via Let's Encrypt |
 
 ```
 obelix/monetalis/
-├── monetalis-namespace.yaml
-├── monetalis-web-deployment.yaml
-├── monetalis-web-service.yaml
-└── monetalis-web-ingressroute.yaml
+├── monetalis-namespace.yaml          # namespace: monetalis
+├── monetalis-web-deployment.yaml     # deployment: monetalis-web (nginx + SPA)
+├── monetalis-web-service.yaml        # service: monetalis-web-service (ClusterIP:80)
+└── monetalis-web-ingressroute.yaml   # ingressroute: monetalis.danipras.dev (Traefik)
 ```
 
+**Prerequisites:**
+- `ghcr-pull-secret` harus ada di namespace `monetalis` (copy dari namespace lain)
+- DNS record: `monetalis.danipras.dev` → Traefik LoadBalancer IP
+
 ```bash
+# Apply manifests
+cd obelix
 kubectl apply -f monetalis/monetalis-namespace.yaml
 kubectl apply -f monetalis/monetalis-web-deployment.yaml
 kubectl apply -f monetalis/monetalis-web-service.yaml
 kubectl apply -f monetalis/monetalis-web-ingressroute.yaml
+
+# Copy GHCR pull secret (jika belum ada)
+kubectl get secret ghcr-pull-secret -n cms-payload -o yaml | \
+  sed 's/namespace: cms-payload/namespace: monetalis/' | \
+  kubectl apply -f -
 ```
 
 ### Restart after new image
