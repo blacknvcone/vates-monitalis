@@ -1,19 +1,15 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { RouterProvider, createRouter, redirect } from '@tanstack/react-router';
+import { RouterProvider, createRouter } from '@tanstack/react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AuthProvider, useAuth } from '@/lib/auth';
+import { AuthProvider } from '@/lib/auth';
 import { routeTree } from './routeTree.gen';
 import './app.css';
 
-// Create router with auth context
+// Create router
 const router = createRouter({
   routeTree,
   defaultPreload: 'intent',
-  context: {
-    auth: undefined!,
-    queryClient: undefined!,
-  },
 });
 
 // Register router type
@@ -33,18 +29,6 @@ const queryClient = new QueryClient({
   },
 });
 
-// App component that passes auth context to router
-function App() {
-  const auth = useAuth();
-
-  return (
-    <RouterProvider
-      router={router}
-      context={{ auth, queryClient }}
-    />
-  );
-}
-
 // Render
 const rootElement = document.getElementById('root')!;
 if (!rootElement.innerHTML) {
@@ -53,7 +37,7 @@ if (!rootElement.innerHTML) {
     <React.StrictMode>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
-          <App />
+          <RouterProvider router={router} />
         </AuthProvider>
       </QueryClientProvider>
     </React.StrictMode>,
