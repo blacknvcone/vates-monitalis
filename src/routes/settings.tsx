@@ -16,6 +16,7 @@ import {
   CheckCircle,
   Loader2,
   AlertCircle,
+  User,
 } from 'lucide-react';
 import { formatIDR } from '@/lib/format';
 import { useAuth } from '@/lib/auth';
