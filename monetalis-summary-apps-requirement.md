@@ -1,14 +1,6 @@
 # Monetalis - KPR Financial Analysis Dashboard
 
-## Status: ✅ Implemented — Ready for Deployment
-
----
-
-## Architecture
-
-Frontend SPA (Vite + TanStack) → Shared Payload CMS 3.x (revamp-portfolio) → MongoDB Atlas
-
-Domain: `monetalis.danipras.dev`
+## Status: ✅ MVP Complete
 
 ---
 
@@ -17,60 +9,74 @@ Domain: `monetalis.danipras.dev`
 | Layer | Technology |
 |-------|-----------|
 | Frontend | React 19 + Vite 6 + TanStack (Router, Query, Table) + TailwindCSS 4 + Recharts |
-| Backend | Payload CMS 3.x (shared instance, Monetalis group) |
+| Backend | Payload CMS 3.x (shared instance) |
 | Database | MongoDB Atlas |
-| Auth | Payload built-in JWT + API key |
+| Auth | MonetalisUsers collection (JWT, linked to loan) |
 | Email | Nodemailer via Google SMTP |
 | Deploy | Docker + K8s + Traefik |
 
 ---
 
-## Deliverables
+## Repositories
 
-### CMS (revamp-portfolio)
-
-**Collections** (6 files in `collections/monetalis/`):
-- `kpr-loans` — Metadata pinjaman (tab layout)
-- `kpr-rate-tiers` — Tier suku bunga berjenjang
-- `kpr-schedule` — Jadwal angsuran 240 bulan
-- `kpr-extra-payments` — Log pembayaran ekstra
-- `kpr-reminders` — Konfigurasi email reminder
-- `kpr-simulations` — Skenario simulasi tersimpan
-
-**Custom Endpoints** (801 baris in `endpoints/kpr.ts`):
-- `GET /api/kpr/status` — Status KPR saat ini
-- `POST /api/kpr/simulate/early-payoff` — Simulasi pelunasan
-- `POST /api/kpr/simulate/extra-payment` — Simulasi bayar ekstra
-- `GET /api/kpr/insights` — Financial insights
-- `POST /api/kpr/seed` — Seed data KPR
-- `POST /api/kpr/send-reminder` — Trigger email
-
-### Frontend (vates-monitalis)
-
-**Pages** (5 routes, ~2,400 baris total):
-- Dashboard — Summary cards, charts, timeline, milestone alerts
-- Tabel Angsuran — TanStack Table 240 bulan, sort, filter, status
-- Simulator — Early payoff + extra payment, charts, comparison
-- Insights — Opportunity cost, milestones, rekomendasi
-- Settings — Email reminder CRUD, export, system info
-
-**Supporting** (~770 baris):
-- API client, mock data provider, hooks, types, formatters
+| Repo | Purpose | URL |
+|------|---------|-----|
+| `vates-monitalis` | Frontend SPA | github.com/blacknvcone/vates-monitalis |
+| `revamp-portfolio` | Shared CMS + Portfolio | github.com/blacknvcone/revamp-portfolio |
+| `obelix` | K8s manifests | github.com/blacknvcone/obelix |
 
 ---
 
-## Deployment TODO
+## Features
 
-- [ ] Build & deploy CMS with new collections + endpoints
-- [ ] Seed KPR data via `POST /api/kpr/seed`
-- [ ] Dockerfile + K8s manifests for web
-- [ ] Traefik IngressRoute
-- [ ] CORS configuration
-- [ ] Google SMTP credentials
+| Feature | Description |
+|---------|-------------|
+| Dashboard | Summary cards, phase timeline, balance chart, pie chart, next payment, milestones |
+| Tabel Angsuran | 240 bulan, TanStack Table, sort/filter/pagination, status toggle |
+| Simulator | 3 tab: Early Payoff, Extra Payment, Savings Simulation |
+| Insights | Computed from data: key metrics, milestones, opportunity cost, recommendations |
+| Email Reminder | Payment reminder + monthly insight, multi-user per loan |
+| Settings | Reminder config, users list, per-user test email |
+| Auth | Login page, JWT auth, data isolation per loanId |
+
+---
+
+## CMS Collections (Monetalis group)
+
+- `monetalis-users` — Auth users (linked to 1 loan, role: admin/viewer)
+- `kpr-loans` — Loan metadata
+- `kpr-rate-tiers` — Stepped fixed rate tiers
+- `kpr-schedule` — 240-month schedule with payment tracking
+- `kpr-extra-payments` — Extra payment log
+- `kpr-reminders` — Email reminder config
+- `kpr-simulations` — Saved simulations
+
+## Custom Endpoints
+
+- `GET /api/kpr/status` — Current KPR status
+- `POST /api/kpr/simulate/early-payoff` — Early payoff simulation
+- `POST /api/kpr/simulate/extra-payment` — Extra payment simulation
+- `GET /api/kpr/insights` — Financial insights
+- `POST /api/kpr/seed` — Seed data (marks paid entries)
+- `POST /api/kpr/send-payment-reminder` — Send to all loan users
+- `POST /api/kpr/send-monthly-insight` — Send to all loan users
+- `POST /api/kpr/send-payment-reminder-test` — Send to specific email
+- `POST /api/kpr/send-monthly-insight-test` — Send to specific email
+
+---
+
+## Domains
+
+| Domain | Service |
+|--------|---------|
+| `monetalis.danipras.dev` | Frontend SPA |
+| `cms.danipras.dev` | Payload CMS (shared) |
+| `cms.danipras.dev/admin` | CMS admin panel |
 
 ---
 
 ## Detail
 
+- [README](README.md)
 - [PRD](docs/PRD.md)
 - [KPR Analysis](KPR-Analysis-Summary.md)

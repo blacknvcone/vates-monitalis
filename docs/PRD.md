@@ -2,15 +2,15 @@
 
 ## Product Requirements Document (PRD)
 
-**Version:** 4.0 (Implementation Complete)
+**Version:** 5.0 (MVP Complete)
 **Date:** 12 Juli 2026
-**Status:** Implemented — Ready for Deployment
+**Status:** ✅ Implemented
 
 ---
 
 ## 1. Overview
 
-Web application personal finance dashboard untuk monitoring dan optimasi KPR BRI dengan struktur bunga berjenjang (stepped fixed rate).
+Web application personal finance dashboard untuk monitoring dan optimasi KPR BRI dengan struktur bunga berjenjang.
 
 - **Frontend**: React SPA dengan TanStack (Router + Query + Table)
 - **Backend**: Shared Payload CMS 3.x (repository: `revamp-portfolio`)
@@ -21,95 +21,105 @@ Web application personal finance dashboard untuk monitoring dan optimasi KPR BRI
 
 ## 2. Implementation Status
 
-### ✅ Phase 1: CMS Collections (revamp-portfolio)
+### ✅ CMS Collections (revamp-portfolio)
 
-6 collections under `Monetalis` admin group:
+| Collection | File | Description |
+|-----------|------|-------------|
+| `monetalis-users` | `MonetalisUsers.ts` | Auth users, linked to 1 loan, role: admin/viewer |
+| `kpr-loans` | `KprLoans.ts` | Loan metadata (3 tabs) |
+| `kpr-rate-tiers` | `KprRateTiers.ts` | Stepped fixed rate tiers |
+| `kpr-schedule` | `KprSchedule.ts` | 240-month schedule with payment tracking |
+| `kpr-extra-payments` | `KprExtraPayments.ts` | Extra payment log |
+| `kpr-reminders` | `KprReminders.ts` | Email reminder config |
+| `kpr-simulations` | `KprSimulations.ts` | Saved simulations |
 
-| Collection | File | Fields |
-|-----------|------|--------|
-| `kpr-loans` | `collections/monetalis/KprLoans.ts` | Tab layout: Pinjaman, Dokumen, Aturan Penalti |
-| `kpr-rate-tiers` | `collections/monetalis/KprRateTiers.ts` | Tier bunga berjenjang |
-| `kpr-schedule` | `collections/monetalis/KprSchedule.ts` | 240 bulan + payment status |
-| `kpr-extra-payments` | `collections/monetalis/KprExtraPayments.ts` | Log pembayaran ekstra |
-| `kpr-reminders` | `collections/monetalis/KprReminders.ts` | Email reminder config |
-| `kpr-simulations` | `collections/monetalis/KprSimulations.ts` | Simulasi tersimpan |
+### ✅ CMS Custom Endpoints (revamp-portfolio)
 
-### ✅ Phase 2: CMS Custom Endpoints (revamp-portfolio)
+| Endpoint | File | Description |
+|----------|------|-------------|
+| `GET /api/kpr/status` | `kpr.ts` | Current KPR status |
+| `POST /api/kpr/simulate/early-payoff` | `kpr.ts` | Early payoff simulation |
+| `POST /api/kpr/simulate/extra-payment` | `kpr.ts` | Extra payment simulation |
+| `GET /api/kpr/insights` | `kpr.ts` | Financial insights |
+| `POST /api/kpr/seed` | `kpr.ts` | Seed data (marks paid entries) |
+| `POST /api/kpr/send-payment-reminder` | `kpr-email.ts` | Send to all loan users |
+| `POST /api/kpr/send-monthly-insight` | `kpr-email.ts` | Send to all loan users |
+| `POST /api/kpr/send-payment-reminder-test` | `kpr-email.ts` | Send to specific email |
+| `POST /api/kpr/send-monthly-insight-test` | `kpr-email.ts` | Send to specific email |
 
-File: `endpoints/kpr.ts` (801 baris)
+### ✅ Frontend (vates-monitalis)
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/kpr/status` | Compute current KPR status from schedule |
-| POST | `/api/kpr/simulate/early-payoff` | Early payoff simulation with penalty |
-| POST | `/api/kpr/simulate/extra-payment` | Extra payment simulation |
-| GET | `/api/kpr/insights` | Milestones, opportunity cost, recommendations |
-| POST | `/api/kpr/seed` | Seed KPR data (idempotent) |
-| POST | `/api/kpr/send-reminder` | Trigger email reminder via Nodemailer |
+| Page | Route | Features |
+|------|-------|----------|
+| Dashboard | `/` | Summary cards, phase timeline, balance chart, pie chart, next payment, milestone alerts |
+| Tabel Angsuran | `/schedule` | TanStack Table 240 rows, sort, filter, pagination, status toggle, area chart |
+| Simulator | `/simulator` | 3 tabs: early payoff, extra payment, savings simulation |
+| Insights | `/insights` | Computed: key metrics, recommendation, milestones, opportunity cost table |
+| Settings | `/settings` | Reminder config (day, types), users list with test email, loan info, export |
+| Login | `/login` | Auth form with email/password |
 
-### ✅ Phase 3: Frontend (vates-monitalis)
+### ✅ Supporting Code
 
-| Page | Route | File | Lines | Features |
-|------|-------|------|-------|----------|
-| Dashboard | `/` | `routes/index.tsx` | 280 | Summary cards, phase timeline, charts, milestone alert |
-| Tabel Angsuran | `/schedule` | `routes/schedule.tsx` | 684 | TanStack Table, sort, filter, pagination, status toggle |
-| Simulator | `/simulator` | `routes/simulator.tsx` | 680 | Early payoff + extra payment tabs, charts |
-| Insights | `/insights` | `routes/insights.tsx` | 370 | Milestones, opportunity cost, recommendations |
-| Settings | `/settings` | `routes/settings.tsx` | 350 | Email reminder CRUD, export, system info |
-
-Supporting files:
-- `lib/api.ts` — Payload CMS REST client (230 baris)
-- `lib/mock-data.ts` — Centralized mock data generator (280 baris)
-- `lib/format.ts` — IDR currency, date formatters (90 baris)
-- `hooks/index.ts` — TanStack Query hooks (170 baris)
-- `types/index.ts` — TypeScript interfaces (170 baris)
-
----
-
-## 3. Architecture
-
-```
-┌──────────────────────────────────────────────────────┐
-│  K8s Cluster                                         │
-│                                                      │
-│  ┌─────────────────┐    ┌──────────────────────┐     │
-│  │  web (SPA)       │    │  cms (Payload 3.x)   │     │
-│  │  Vite + React    │───►│  Next.js 15          │     │
-│  │  TanStack        │API │  REST + GraphQL      │     │
-│  │  port 3000       │    │  Auth (JWT + API Key)│     │
-│  │  nginx           │    │  port 3001           │     │
-│  └─────────────────┘    └──────┬───────┬───────┘     │
-│                                 │       │             │
-│                          ┌──────▼──┐ ┌──▼────────┐    │
-│                          │ MongoDB │ │ Google    │    │
-│                          │ Atlas   │ │ SMTP      │    │
-│                          └─────────┘ └───────────┘    │
-│                                                      │
-│  Traefik IngressRoute:                               │
-│    monetalis.danipras.dev       → web:3000            │
-│    monetalis.danipras.dev/api   → cms:3001            │
-│    monetalis.danipras.dev/admin → cms:3001            │
-└──────────────────────────────────────────────────────┘
-```
+| File | Lines | Description |
+|------|-------|-------------|
+| `lib/api.ts` | 260+ | Payload CMS REST client (full CRUD + custom endpoints) |
+| `lib/auth.tsx` | 70 | AuthContext provider + useAuth hook |
+| `lib/mock-data.ts` | 350+ | Mock data generator with savings simulation |
+| `lib/format.ts` | 90 | IDR currency, date, percentage formatters |
+| `hooks/index.ts` | 180 | TanStack Query hooks (auto loanId) |
+| `types/index.ts` | 170 | TypeScript interfaces |
 
 ---
 
-## 4. Build Output
+## 3. Key Architecture Decisions
 
-```
-dist/assets/index-BG_EXK6p.js     277 KB (81 KB gzip)   — App code
-dist/assets/tanstack-BwwBySp9.js  183 KB (55 KB gzip)   — TanStack
-dist/assets/charts-D7KmDOWB.js    432 KB (115 KB gzip)  — Recharts
-dist/assets/index-CCsranA2.css     29 KB (6 KB gzip)    — Styles
-```
+1. **Shared CMS** — Payload CMS serves multiple frontends (portfolio + monetalis)
+2. **User-Loan Relationship** — 1 user → 1 loan, 1 loan → N users
+3. **Auth** — MonetalisUsers collection with JWT, separate from shared Users
+4. **Email** — Nodemailer via Google SMTP, sends to all users on a loan
+5. **Data Isolation** — Users only see data for their assigned loanId
 
 ---
 
-## 5. Pending for Deployment
+## 4. Email System
 
-- [ ] Build & deploy CMS with new collections + endpoints
-- [ ] Seed KPR data via `POST /api/kpr/seed`
-- [ ] Dockerfile for web (Vite static + nginx)
-- [ ] K8s manifests (Deployment, Service, IngressRoute)
-- [ ] CORS configuration in CMS for monetalis domain
-- [ ] Google SMTP app password for email reminders
+| Type | Subject | Content |
+|------|---------|---------|
+| Payment Reminder | 🔔 Pengingat Angsuran KPR - [Month] | Next payment, due date, breakdown, progress |
+| Monthly Insight | 📊 Laporan Bulanan KPR - [Month] | Summary, accumulation, milestones, recommendations |
+
+- Multi-recipient: all active users linked to the loan
+- Configurable: day of month (1-28), toggle per type
+- Per-user test buttons in frontend Settings
+
+---
+
+## 5. Deployment
+
+| Component | Repository | CI/CD | Domain |
+|-----------|-----------|-------|--------|
+| Frontend | vates-monitalis | GitHub Actions (`v*` tag) | monetalis.danipras.dev |
+| CMS | revamp-portfolio | GitHub Actions (`cms-v*` tag) | cms.danipras.dev |
+| K8s Manifests | obelix | Manual apply | - |
+
+---
+
+## 6. KPR Data
+
+| Item | Value |
+|------|-------|
+| Borrower | Fachrul Dani Prasetya & Nur Winingsih |
+| Bank | BRI Kanca HR Muhammad |
+| Loan Amount | Rp 415,000,000 |
+| House Price | Rp 539,000,000 |
+| Down Payment | Rp 124,000,000 (23%) |
+| Tenor | 240 months (20 years) |
+| First Payment | November 2023 |
+
+| Phase | Months | Rate | Installment |
+|-------|--------|------|-------------|
+| 1 | 1-36 (Nov 2023 - Okt 2026) | 4.75% | Rp 2,681,900 |
+| 2 | 37-72 (Nov 2026 - Okt 2029) | 8.00% | Rp 3,367,400 |
+| 3 | 73-240 (Nov 2029 - Okt 2043) | 10.25% | Rp 3,815,600 |
+
+**Total bunga 20 tahun:** Rp 443,782,131 (107% dari pokok)
