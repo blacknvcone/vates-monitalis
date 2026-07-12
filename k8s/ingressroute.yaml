@@ -1,0 +1,18 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: monetalis-web-ingressroute
+  namespace: monetalis
+  labels:
+    app: monetalis-web
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`monetalis.danipras.dev`)
+      kind: Rule
+      services:
+        - name: monetalis-web
+          port: 80
+  tls:
+    certResolver: letsencrypt
