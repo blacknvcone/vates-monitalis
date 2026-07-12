@@ -1,4 +1,4 @@
-import { createRootRoute, Outlet, Link, useMatchRoute } from '@tanstack/react-router';
+import { createRootRoute, Outlet, Link, useMatchRoute, useLocation } from '@tanstack/react-router';
 import { LayoutDashboard, CalendarDays, Calculator, Lightbulb, Settings, Menu, X, LogOut, User } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useAuth } from '@/lib/auth';
@@ -89,9 +89,40 @@ function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) 
   );
 }
 
-function AuthGuard({ children }: { children: ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth();
+function AuthenticatedLayout({ children }: { children: ReactNode }) {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  return (
+    <div className="flex h-screen bg-surface overflow-hidden">
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+      <main className="flex-1 overflow-y-auto">
+        <div className="lg:hidden sticky top-0 z-30 bg-white border-b px-4 py-3 flex items-center gap-3">
+          <button onClick={() => setSidebarOpen(true)} className="p-1 hover:bg-gray-100 rounded">
+            <Menu size={20} />
+          </button>
+          <h1 className="text-lg font-bold text-primary">Monetalis</h1>
+        </div>
+
+        <div className="p-6 lg:p-8 max-w-7xl mx-auto">
+          {children}
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function RootComponent() {
+  const { isAuthenticated, isLoading } = useAuth();
+  const location = useLocation();
+  const isLoginPage = location.pathname === '/login';
+
+  // Login page: render without auth guard
+  if (isLoginPage) {
+    return <Outlet />;
+  }
+
+  // Loading state
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -100,37 +131,17 @@ function AuthGuard({ children }: { children: ReactNode }) {
     );
   }
 
+  // Not authenticated: redirect to login
   if (!isAuthenticated) {
-    // Use window.location for redirect to avoid router context issues
     window.location.href = '/login';
     return null;
   }
 
-  return <>{children}</>;
-}
-
-function RootComponent() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-
+  // Authenticated: render with sidebar layout
   return (
-    <AuthGuard>
-      <div className="flex h-screen bg-surface overflow-hidden">
-        <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-
-        <main className="flex-1 overflow-y-auto">
-          <div className="lg:hidden sticky top-0 z-30 bg-white border-b px-4 py-3 flex items-center gap-3">
-            <button onClick={() => setSidebarOpen(true)} className="p-1 hover:bg-gray-100 rounded">
-              <Menu size={20} />
-            </button>
-            <h1 className="text-lg font-bold text-primary">Monetalis</h1>
-          </div>
-
-          <div className="p-6 lg:p-8 max-w-7xl mx-auto">
-            <Outlet />
-          </div>
-        </main>
-      </div>
-    </AuthGuard>
+    <AuthenticatedLayout>
+      <Outlet />
+    </AuthenticatedLayout>
   );
 }
 
