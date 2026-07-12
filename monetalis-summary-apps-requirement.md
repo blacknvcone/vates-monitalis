@@ -1,21 +1,14 @@
 # Monetalis - KPR Financial Analysis Dashboard
 
-## Requirement Overview
-
-Monitoring KPR dengan struktur bunga berjenjang (stepped fixed rate) — dashboard keuangan, simulasi pembayaran, reminder email.
+## Status: ✅ Implemented — Ready for Deployment
 
 ---
 
-## Architecture Decision
+## Architecture
 
-> **Payload CMS 3.x sebagai backend** — tidak perlu API terpisah.
-> Payload auto-generates REST & GraphQL API, built-in auth, admin panel.
-> Mengikuti pattern yang sudah established di `revamp-portfolio`.
+Frontend SPA (Vite + TanStack) → Shared Payload CMS 3.x (revamp-portfolio) → MongoDB Atlas
 
-```
-Browser → [web:3000] → Payload REST API → [MongoDB Atlas]
-                            ↘ [Google SMTP]
-```
+Domain: `monetalis.danipras.dev`
 
 ---
 
@@ -23,62 +16,61 @@ Browser → [web:3000] → Payload REST API → [MongoDB Atlas]
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | React + Vite + TanStack (Router + Query + Table) + TailwindCSS + shadcn/ui |
-| Backend | Payload CMS 3.x (Next.js 15) |
-| Database | MongoDB Atlas (shared cluster, DB: monetalis) |
+| Frontend | React 19 + Vite 6 + TanStack (Router, Query, Table) + TailwindCSS 4 + Recharts |
+| Backend | Payload CMS 3.x (shared instance, Monetalis group) |
+| Database | MongoDB Atlas |
 | Auth | Payload built-in JWT + API key |
 | Email | Nodemailer via Google SMTP |
-| Monorepo | Turborepo + pnpm |
 | Deploy | Docker + K8s + Traefik |
-| Domain | monetalis.danipras.dev |
 
 ---
 
-## Features
+## Deliverables
 
-1. **Dashboard** — Summary KPR, progress, key metrics, charts
-2. **Tabel Angsuran** — 240 bulan, TanStack Table, toggle is_paid
-3. **Simulator** — Early payoff, extra payment, scenario comparison
-4. **Insights** — Opportunity cost, milestones, rekomendasi
-5. **Email Reminder** — Konfigurasi, template, cron job
-6. **Settings** — Edit data, rate tiers, export
+### CMS (revamp-portfolio)
 
----
-
-## Data Model (Payload Collections)
-
-- `kpr-loans` — Metadata pinjaman
+**Collections** (6 files in `collections/monetalis/`):
+- `kpr-loans` — Metadata pinjaman (tab layout)
 - `kpr-rate-tiers` — Tier suku bunga berjenjang
-- `kpr-schedule` — Jadwal angsuran 240 bulan (seeded from CSV)
+- `kpr-schedule` — Jadwal angsuran 240 bulan
 - `kpr-extra-payments` — Log pembayaran ekstra
 - `kpr-reminders` — Konfigurasi email reminder
 - `kpr-simulations` — Skenario simulasi tersimpan
 
----
-
-## Custom Endpoints
-
-- `GET /api/kpr/status` — Status KPR saat ini (computed)
-- `POST /api/kpr/simulate/early-payoff` — Simulasi pelunasan dipercepat
+**Custom Endpoints** (801 baris in `endpoints/kpr.ts`):
+- `GET /api/kpr/status` — Status KPR saat ini
+- `POST /api/kpr/simulate/early-payoff` — Simulasi pelunasan
 - `POST /api/kpr/simulate/extra-payment` — Simulasi bayar ekstra
 - `GET /api/kpr/insights` — Financial insights
-- `POST /api/kpr/send-reminder` — Trigger email reminder
-- `POST /api/kpr/seed` — Seed data dari CSV
+- `POST /api/kpr/seed` — Seed data KPR
+- `POST /api/kpr/send-reminder` — Trigger email
+
+### Frontend (vates-monitalis)
+
+**Pages** (5 routes, ~2,400 baris total):
+- Dashboard — Summary cards, charts, timeline, milestone alerts
+- Tabel Angsuran — TanStack Table 240 bulan, sort, filter, status
+- Simulator — Early payoff + extra payment, charts, comparison
+- Insights — Opportunity cost, milestones, rekomendasi
+- Settings — Email reminder CRUD, export, system info
+
+**Supporting** (~770 baris):
+- API client, mock data provider, hooks, types, formatters
 
 ---
 
-## Implementation Phases
+## Deployment TODO
 
-| Phase | Scope |
-|-------|-------|
-| 1. Foundation | Monorepo, Payload CMS, collections, seed, auth, dashboard |
-| 2. Core | Tabel Angsuran, charts, payment tracking, status endpoint |
-| 3. Simulator | Early payoff, extra payment, comparison |
-| 4. Insights & Email | Insights engine, milestones, email reminders |
-| 5. Deploy | Docker, K8s, Traefik, CI/CD |
+- [ ] Build & deploy CMS with new collections + endpoints
+- [ ] Seed KPR data via `POST /api/kpr/seed`
+- [ ] Dockerfile + K8s manifests for web
+- [ ] Traefik IngressRoute
+- [ ] CORS configuration
+- [ ] Google SMTP credentials
 
 ---
 
 ## Detail
 
-Full PRD: [docs/PRD.md](docs/PRD.md)
+- [PRD](docs/PRD.md)
+- [KPR Analysis](KPR-Analysis-Summary.md)
