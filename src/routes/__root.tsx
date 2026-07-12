@@ -1,10 +1,17 @@
-import { createRootRouteWithContext, Outlet, Link, useMatchRoute } from '@tanstack/react-router';
+import { createRootRouteWithContext, Outlet, Link, useMatchRoute, Navigate } from '@tanstack/react-router';
 import type { QueryClient } from '@tanstack/react-query';
-import { LayoutDashboard, CalendarDays, Calculator, Lightbulb, Settings, Menu, X } from 'lucide-react';
+import { LayoutDashboard, CalendarDays, Calculator, Lightbulb, Settings, Menu, X, LogOut, User } from 'lucide-react';
 import { useState } from 'react';
+import { useAuth } from '@/lib/auth';
 
 interface RouterContext {
   queryClient: QueryClient;
+  auth: {
+    user: { id: string; email: string; name: string; role: string } | null;
+    isLoading: boolean;
+    isAuthenticated: boolean;
+    logout: () => void;
+  };
 }
 
 const NAV_ITEMS = [
@@ -17,6 +24,7 @@ const NAV_ITEMS = [
 
 function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const matchRoute = useMatchRoute();
+  const { user, logout } = useAuth();
 
   return (
     <>
@@ -77,8 +85,25 @@ function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) 
           })}
         </nav>
 
+        {/* User info & logout */}
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-white/10">
-          <p className="text-xs text-white/40 text-center">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
+              <User size={14} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white truncate">{user?.name || user?.email}</p>
+              <p className="text-[10px] text-white/50 capitalize">{user?.role}</p>
+            </div>
+          </div>
+          <button
+            onClick={logout}
+            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+          >
+            <LogOut size={14} />
+            Keluar
+          </button>
+          <p className="text-[10px] text-white/30 text-center mt-2">
             v1.0.0 &middot; BRI KPR
           </p>
         </div>
@@ -87,8 +112,23 @@ function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) 
   );
 }
 
-function RootComponent() {
+function AuthenticatedLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { isAuthenticated, isLoading } = useAuth();
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  // Redirect to login if not authenticated
+  if (!isAuthenticated) {
+    return <Navigate to="/login" />;
+  }
 
   return (
     <div className="flex h-screen bg-surface overflow-hidden">
@@ -115,5 +155,5 @@ function RootComponent() {
 }
 
 export const Route = createRootRouteWithContext<RouterContext>()({
-  component: RootComponent,
+  component: AuthenticatedLayout,
 });

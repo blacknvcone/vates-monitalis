@@ -56,7 +56,7 @@ async function cmsFetch<T>(
 
 export async function login(email: string, password: string) {
   const res = await cmsFetch<{ user: { id: string; email: string }; token: string }>(
-    '/api/users/login',
+    '/api/monetalis-users/login',
     {
       method: 'POST',
       body: JSON.stringify({ email, password }),
