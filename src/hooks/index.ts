@@ -17,22 +17,21 @@ export const queryKeys = {
   insights: (loanId: string) => ['kpr-insights', loanId] as const,
 };
 
-// ============================================================
-// KPR Loans
-// ============================================================
-
-export function useKprLoans() {
-  return useQuery({
-    queryKey: queryKeys.kprLoans,
-    queryFn: () => api.fetchKprLoans(),
-  });
+// Helper: get loanId from auth context
+function useLoanId(): string {
+  return api.getLoanId();
 }
 
-export function useKprLoan(id: string) {
+// ============================================================
+// KPR Status
+// ============================================================
+
+export function useKprStatus() {
+  const loanId = useLoanId();
   return useQuery({
-    queryKey: queryKeys.kprLoan(id),
-    queryFn: () => api.fetchKprLoan(id),
-    enabled: !!id,
+    queryKey: queryKeys.kprStatus(loanId),
+    queryFn: () => api.fetchKprStatus(loanId),
+    enabled: !!loanId,
   });
 }
 
@@ -40,7 +39,8 @@ export function useKprLoan(id: string) {
 // Schedule
 // ============================================================
 
-export function useSchedule(loanId: string) {
+export function useSchedule() {
+  const loanId = useLoanId();
   return useQuery({
     queryKey: queryKeys.schedule(loanId),
     queryFn: () => api.fetchSchedule(loanId),
@@ -50,35 +50,53 @@ export function useSchedule(loanId: string) {
 
 export function useMarkSchedulePaid() {
   const queryClient = useQueryClient();
+  const loanId = useLoanId();
   return useMutation({
     mutationFn: ({ id, paidDate, paidAmount }: { id: string; paidDate: string; paidAmount?: number }) =>
       api.markSchedulePaid(id, paidDate, paidAmount),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['kpr-schedule'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.schedule(loanId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.kprStatus(loanId) });
     },
   });
 }
 
 export function useBulkMarkPaid() {
   const queryClient = useQueryClient();
+  const loanId = useLoanId();
   return useMutation({
-    mutationFn: ({ loanId, upToMonth }: { loanId: string; upToMonth: number }) =>
+    mutationFn: ({ upToMonth }: { upToMonth: number }) =>
       api.bulkMarkPaid(loanId, upToMonth),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['kpr-schedule'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.schedule(loanId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.kprStatus(loanId) });
     },
   });
 }
 
 // ============================================================
-// Status
+// Extra Payments
 // ============================================================
 
-export function useKprStatus(loanId: string) {
+export function useExtraPayments() {
+  const loanId = useLoanId();
   return useQuery({
-    queryKey: queryKeys.kprStatus(loanId),
-    queryFn: () => api.fetchKprStatus(loanId),
+    queryKey: queryKeys.extraPayments(loanId),
+    queryFn: () => api.fetchExtraPayments(loanId),
     enabled: !!loanId,
+  });
+}
+
+export function useCreateExtraPayment() {
+  const queryClient = useQueryClient();
+  const loanId = useLoanId();
+  return useMutation({
+    mutationFn: ({ date, amount, note }: { date: string; amount: number; note?: string }) =>
+      api.createExtraPayment(loanId, date, amount, note),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.extraPayments(loanId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.schedule(loanId) });
+    },
   });
 }
 
@@ -86,7 +104,8 @@ export function useKprStatus(loanId: string) {
 // Simulations
 // ============================================================
 
-export function useSimulations(loanId: string) {
+export function useSimulations() {
+  const loanId = useLoanId();
   return useQuery({
     queryKey: queryKeys.simulations(loanId),
     queryFn: () => api.fetchSimulations(loanId),
@@ -96,16 +115,16 @@ export function useSimulations(loanId: string) {
 
 export function useSaveSimulation() {
   const queryClient = useQueryClient();
+  const loanId = useLoanId();
   return useMutation({
     mutationFn: (params: {
-      loanId: string;
       name: string;
       scenarioType: 'early_payoff' | 'extra_payment' | 'refinance';
       params: Record<string, unknown>;
       results: Record<string, unknown>;
-    }) => api.saveSimulation(params.loanId, params.name, params.scenarioType, params.params, params.results),
+    }) => api.saveSimulation(loanId, params.name, params.scenarioType, params.params, params.results),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['kpr-simulations'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.simulations(loanId) });
     },
   });
 }
@@ -124,7 +143,8 @@ export function useDeleteSimulation() {
 // Reminders
 // ============================================================
 
-export function useReminders(loanId: string) {
+export function useReminders() {
+  const loanId = useLoanId();
   return useQuery({
     queryKey: queryKeys.reminders(loanId),
     queryFn: () => api.fetchReminders(loanId),
@@ -134,11 +154,12 @@ export function useReminders(loanId: string) {
 
 export function useCreateReminder() {
   const queryClient = useQueryClient();
+  const loanId = useLoanId();
   return useMutation({
-    mutationFn: ({ loanId, email, reminderDay }: { loanId: string; email: string; reminderDay: number }) =>
+    mutationFn: ({ email, reminderDay }: { email: string; reminderDay: number }) =>
       api.createReminder(loanId, email, reminderDay),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['kpr-reminders'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.reminders(loanId) });
     },
   });
 }
@@ -157,10 +178,33 @@ export function useDeleteReminder() {
 // Insights
 // ============================================================
 
-export function useInsights(loanId: string) {
+export function useInsights() {
+  const loanId = useLoanId();
   return useQuery({
     queryKey: queryKeys.insights(loanId),
     queryFn: () => api.fetchInsights(loanId),
     enabled: !!loanId,
+  });
+}
+
+// ============================================================
+// Email
+// ============================================================
+
+export function useSendPaymentReminder() {
+  return useMutation({
+    mutationFn: ({ reminderId }: { reminderId: string }) => {
+      const loanId = useLoanId();
+      return api.sendReminder(reminderId, loanId);
+    },
+  });
+}
+
+export function useSendMonthlyInsight() {
+  return useMutation({
+    mutationFn: ({ reminderId }: { reminderId: string }) => {
+      const loanId = useLoanId();
+      return api.sendMonthlyInsight(reminderId, loanId);
+    },
   });
 }

@@ -74,6 +74,40 @@ export function isAuthenticated(): boolean {
   return !!localStorage.getItem('monetalis_token');
 }
 
+export function getLoanId(): string {
+  try {
+    const stored = localStorage.getItem('monetalis_user');
+    if (stored) {
+      const user = JSON.parse(stored);
+      return user.loanId || '';
+    }
+  } catch {}
+  return '';
+}
+
+export async function fetchCurrentUser() {
+  try {
+    const token = localStorage.getItem('monetalis_token');
+    if (!token) return null;
+
+    // Decode JWT to get user ID
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const userId = payload.id;
+    if (!userId) return null;
+
+    const res = await cmsFetch<any>(`/api/monetalis-users/${userId}?depth=1`);
+    return {
+      id: res.id,
+      email: res.email,
+      name: res.name,
+      role: res.role,
+      loan: typeof res.loan === 'object' ? res.loan?.id : res.loan,
+    };
+  } catch {
+    return null;
+  }
+}
+
 // ============================================================
 // KPR Loans
 // ============================================================

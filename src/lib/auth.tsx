@@ -6,6 +6,7 @@ interface User {
   email: string;
   name: string;
   role: 'admin' | 'viewer';
+  loanId: string;
 }
 
 interface AuthContextType {
@@ -22,7 +23,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check existing token on mount
   useEffect(() => {
     const token = localStorage.getItem('monetalis_token');
     const storedUser = localStorage.getItem('monetalis_user');
@@ -40,14 +40,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     const res = await api.login(email, password);
-    const userData: User = {
+
+    // Fetch full user data to get loanId
+    const userData = await api.fetchCurrentUser();
+
+    const userObj: User = {
       id: res.user.id,
       email: res.user.email,
-      name: (res.user as any).name || res.user.email,
-      role: (res.user as any).role || 'viewer',
+      name: userData?.name || (res.user as any).name || res.user.email,
+      role: userData?.role || (res.user as any).role || 'viewer',
+      loanId: userData?.loan || (res.user as any).loan || '',
     };
-    localStorage.setItem('monetalis_user', JSON.stringify(userData));
-    setUser(userData);
+
+    localStorage.setItem('monetalis_user', JSON.stringify(userObj));
+    setUser(userObj);
   }, []);
 
   const logout = useCallback(() => {
