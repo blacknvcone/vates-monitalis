@@ -12,6 +12,9 @@ import {
   Database,
   FileText,
   BarChart3,
+  Send,
+  CheckCircle,
+  Loader2,
 } from 'lucide-react';
 import { formatIDR } from '@/lib/format';
 
@@ -76,7 +79,14 @@ function useMockReminders() {
     setReminders((prev) => prev.filter((r) => r.id !== id));
   };
 
-  return { reminders, addReminder, toggleReminder, toggleType, removeReminder };
+  const updateLastSent = (id: string, type: 'lastPaymentReminderSent' | 'lastMonthlyInsightSent') => {
+    const today = new Date().toISOString().split('T')[0];
+    setReminders((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, [type]: today } : r)),
+    );
+  };
+
+  return { reminders, addReminder, toggleReminder, toggleType, removeReminder, updateLastSent };
 }
 
 // ============================================================
@@ -84,15 +94,38 @@ function useMockReminders() {
 // ============================================================
 
 function ReminderSection() {
-  const { reminders, addReminder, toggleReminder, toggleType, removeReminder } = useMockReminders();
+  const { reminders, addReminder, toggleReminder, toggleType, removeReminder, updateLastSent } = useMockReminders();
   const [newEmail, setNewEmail] = useState('');
   const [newDay, setNewDay] = useState(1);
+  const [testStatus, setTestStatus] = useState<Record<string, { payment?: string; insight?: string }>>({});
 
   const handleAdd = () => {
     if (newEmail && newDay >= 1 && newDay <= 28) {
       addReminder(newEmail, newDay);
       setNewEmail('');
       setNewDay(1);
+    }
+  };
+
+  const handleTestEmail = async (reminderId: string, type: 'payment' | 'insight') => {
+    const key = `${reminderId}-${type}`;
+    setTestStatus((prev) => ({ ...prev, [key]: 'sending' }));
+
+    try {
+      // Simulate API call (replace with real API when CMS is connected)
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      setTestStatus((prev) => ({ ...prev, [key]: 'sent' }));
+
+      if (type === 'payment') {
+        updateLastSent(reminderId, 'lastPaymentReminderSent');
+      } else {
+        updateLastSent(reminderId, 'lastMonthlyInsightSent');
+      }
+
+      setTimeout(() => setTestStatus((prev) => ({ ...prev, [key]: undefined })), 3000);
+    } catch {
+      setTestStatus((prev) => ({ ...prev, [key]: 'error' }));
+      setTimeout(() => setTestStatus((prev) => ({ ...prev, [key]: undefined })), 3000);
     }
   };
 
@@ -131,72 +164,111 @@ function ReminderSection() {
 
       {/* Existing reminders */}
       <div className="space-y-3 mb-6">
-        {reminders.map((reminder) => (
-          <div
-            key={reminder.id}
-            className="p-4 bg-gray-50 rounded-lg border border-gray-200"
-          >
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-3">
-                <button onClick={() => toggleReminder(reminder.id)}>
-                  {reminder.isActive ? (
-                    <ToggleRight size={24} className="text-emerald-500" />
-                  ) : (
-                    <ToggleLeft size={24} className="text-gray-400" />
-                  )}
-                </button>
-                <div>
-                  <p className="text-sm font-medium text-gray-900">{reminder.email}</p>
-                  <p className="text-xs text-gray-500">
-                    Tanggal {reminder.reminderDay} setiap bulan
-                  </p>
+        {reminders.map((reminder) => {
+          const paymentKey = `${reminder.id}-payment`;
+          const insightKey = `${reminder.id}-insight`;
+          const paymentStatus = testStatus[paymentKey];
+          const insightStatus = testStatus[insightKey];
+
+          return (
+            <div
+              key={reminder.id}
+              className="p-4 bg-gray-50 rounded-lg border border-gray-200"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-3">
+                  <button onClick={() => toggleReminder(reminder.id)}>
+                    {reminder.isActive ? (
+                      <ToggleRight size={24} className="text-emerald-500" />
+                    ) : (
+                      <ToggleLeft size={24} className="text-gray-400" />
+                    )}
+                  </button>
+                  <div>
+                    <p className="text-sm font-medium text-gray-900">{reminder.email}</p>
+                    <p className="text-xs text-gray-500">
+                      Tanggal {reminder.reminderDay} setiap bulan
+                    </p>
+                  </div>
                 </div>
+                <button
+                  onClick={() => removeReminder(reminder.id)}
+                  className="text-gray-400 hover:text-red-500 p-1"
+                >
+                  <Trash2 size={14} />
+                </button>
               </div>
-              <button
-                onClick={() => removeReminder(reminder.id)}
-                className="text-gray-400 hover:text-red-500 p-1"
-              >
-                <Trash2 size={14} />
-              </button>
-            </div>
 
-            {/* Email type toggles */}
-            <div className="flex gap-4 pl-9">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={reminder.sendPaymentReminder}
-                  onChange={() => toggleType(reminder.id, 'sendPaymentReminder')}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-xs text-gray-600">Pengingat Pembayaran</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={reminder.sendMonthlyInsight}
-                  onChange={() => toggleType(reminder.id, 'sendMonthlyInsight')}
-                  className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
-                />
-                <span className="text-xs text-gray-600">Laporan Bulanan</span>
-              </label>
-            </div>
+              {/* Email type toggles */}
+              <div className="flex gap-4 pl-9 mb-3">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={reminder.sendPaymentReminder}
+                    onChange={() => toggleType(reminder.id, 'sendPaymentReminder')}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-xs text-gray-600">Pengingat Pembayaran</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={reminder.sendMonthlyInsight}
+                    onChange={() => toggleType(reminder.id, 'sendMonthlyInsight')}
+                    className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                  />
+                  <span className="text-xs text-gray-600">Laporan Bulanan</span>
+                </label>
+              </div>
 
-            {/* Last sent info */}
-            <div className="flex gap-4 pl-9 mt-2">
-              {reminder.lastPaymentReminderSent && (
-                <p className="text-[10px] text-gray-400">
-                  Pengingat terakhir: {reminder.lastPaymentReminderSent}
-                </p>
-              )}
-              {reminder.lastMonthlyInsightSent && (
-                <p className="text-[10px] text-gray-400">
-                  Laporan terakhir: {reminder.lastMonthlyInsightSent}
-                </p>
-              )}
+              {/* Test email buttons */}
+              <div className="flex gap-2 pl-9 mb-2">
+                <button
+                  onClick={() => handleTestEmail(reminder.id, 'payment')}
+                  disabled={paymentStatus === 'sending' || !reminder.sendPaymentReminder}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100"
+                >
+                  {paymentStatus === 'sending' ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : paymentStatus === 'sent' ? (
+                    <CheckCircle size={12} />
+                  ) : (
+                    <Send size={12} />
+                  )}
+                  {paymentStatus === 'sending' ? 'Mengirim...' : paymentStatus === 'sent' ? 'Terkirim!' : 'Test Pengingat'}
+                </button>
+                <button
+                  onClick={() => handleTestEmail(reminder.id, 'insight')}
+                  disabled={insightStatus === 'sending' || !reminder.sendMonthlyInsight}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors disabled:opacity-50 disabled:cursor-not-allowed border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
+                >
+                  {insightStatus === 'sending' ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : insightStatus === 'sent' ? (
+                    <CheckCircle size={12} />
+                  ) : (
+                    <Send size={12} />
+                  )}
+                  {insightStatus === 'sending' ? 'Mengirim...' : insightStatus === 'sent' ? 'Terkirim!' : 'Test Laporan'}
+                </button>
+              </div>
+
+              {/* Last sent info */}
+              <div className="flex gap-4 pl-9">
+                {reminder.lastPaymentReminderSent && (
+                  <p className="text-[10px] text-gray-400">
+                    Pengingat terakhir: {reminder.lastPaymentReminderSent}
+                  </p>
+                )}
+                {reminder.lastMonthlyInsightSent && (
+                  <p className="text-[10px] text-gray-400">
+                    Laporan terakhir: {reminder.lastMonthlyInsightSent}
+                  </p>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Add new reminder */}
