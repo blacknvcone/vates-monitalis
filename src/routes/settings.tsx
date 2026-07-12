@@ -17,6 +17,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { formatIDR } from '@/lib/format';
+import { useAuth } from '@/lib/auth';
 
 // ============================================================
 // Types
@@ -33,11 +34,11 @@ interface Reminder {
   lastMonthlyInsightSent: string | null;
 }
 
-function useMockReminders() {
+function useMockReminders(userEmail?: string) {
   const [reminders, setReminders] = useState<Reminder[]>([
     {
       id: '1',
-      email: 'dani.prasetya@gmail.com',
+      email: userEmail || '',
       reminderDay: 1,
       isActive: true,
       sendPaymentReminder: true,
@@ -94,10 +95,11 @@ function useMockReminders() {
 // ============================================================
 
 function ReminderSection() {
-  const { reminders, addReminder, toggleReminder, toggleType, removeReminder, updateLastSent } = useMockReminders();
+  const { user } = useAuth();
+  const { reminders, addReminder, toggleReminder, toggleType, removeReminder, updateLastSent } = useMockReminders(user?.email);
   const [newEmail, setNewEmail] = useState('');
   const [newDay, setNewDay] = useState(1);
-  const [testStatus, setTestStatus] = useState<Record<string, { payment?: string; insight?: string }>>({});
+  const [testStatus, setTestStatus] = useState<Record<string, string>>({});
 
   const handleAdd = () => {
     if (newEmail && newDay >= 1 && newDay <= 28) {
@@ -122,10 +124,10 @@ function ReminderSection() {
         updateLastSent(reminderId, 'lastMonthlyInsightSent');
       }
 
-      setTimeout(() => setTestStatus((prev) => ({ ...prev, [key]: undefined })), 3000);
+      setTimeout(() => setTestStatus((prev) => ({ ...prev, [key]: "" })), 3000);
     } catch {
       setTestStatus((prev) => ({ ...prev, [key]: 'error' }));
-      setTimeout(() => setTestStatus((prev) => ({ ...prev, [key]: undefined })), 3000);
+      setTimeout(() => setTestStatus((prev) => ({ ...prev, [key]: "" })), 3000);
     }
   };
 
