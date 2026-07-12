@@ -114,8 +114,29 @@ function ReminderSection() {
     setTestStatus((prev) => ({ ...prev, [key]: 'sending' }));
 
     try {
-      // Simulate API call (replace with real API when CMS is connected)
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      const token = localStorage.getItem('monetalis_token');
+      const user = JSON.parse(localStorage.getItem('monetalis_user') || '{}');
+      const endpoint = type === 'payment'
+        ? '/api/kpr/send-payment-reminder'
+        : '/api/kpr/send-monthly-insight';
+
+      const res = await fetch(`${import.meta.env.VITE_CMS_URL}${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          reminderId,
+          loanId: user.loanId,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || `HTTP ${res.status}`);
+      }
+
       setTestStatus((prev) => ({ ...prev, [key]: 'sent' }));
 
       if (type === 'payment') {
@@ -124,10 +145,11 @@ function ReminderSection() {
         updateLastSent(reminderId, 'lastMonthlyInsightSent');
       }
 
-      setTimeout(() => setTestStatus((prev) => ({ ...prev, [key]: "" })), 3000);
-    } catch {
+      setTimeout(() => setTestStatus((prev) => ({ ...prev, [key]: '' })), 3000);
+    } catch (err: any) {
+      console.error('Test email failed:', err);
       setTestStatus((prev) => ({ ...prev, [key]: 'error' }));
-      setTimeout(() => setTestStatus((prev) => ({ ...prev, [key]: "" })), 3000);
+      setTimeout(() => setTestStatus((prev) => ({ ...prev, [key]: '' })), 5000);
     }
   };
 
