@@ -93,6 +93,14 @@ export interface KprSimulation extends PayloadDoc {
   results: Record<string, unknown>;
 }
 
+export interface KprGoal extends PayloadDoc {
+  loan: string | KprLoan;
+  targetDate: string;
+  monthlyIncome?: number;
+  monthlyExpenses?: number;
+  notes?: string;
+}
+
 // ============================================================
 // Computed / API Types
 // ============================================================

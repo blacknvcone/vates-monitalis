@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import {
   Loader2,
@@ -7,10 +7,12 @@ import {
   TrendingDown,
   PiggyBank,
   AlertCircle,
+  Save,
+  CheckCircle,
 } from 'lucide-react';
 import { formatIDR, formatPct } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import { useKprStatus, useSchedule, useKprLoan } from '@/hooks';
+import { useKprStatus, useSchedule, useKprLoan, useGoal, useSaveGoal } from '@/hooks';
 import { adaptCmsStatus } from '@/lib/cms-adapters';
 
 // ============================================================
@@ -127,14 +129,26 @@ function computeGoalAnalysis(
 // ============================================================
 
 function GoalsPage() {
-  // Default target: Oct 2026 (when penalty drops)
+  // Load saved goal from CMS, fallback to default Oct 2026
+  const { data: savedGoal, isLoading: goalLoading } = useGoal();
+  const saveGoalMutation = useSaveGoal();
+
   const [targetDate, setTargetDate] = useState('2026-10-01');
+  const [isInitialized, setIsInitialized] = useState(false);
 
   const { data: cmsStatus, isLoading: statusLoading } = useKprStatus();
   const { data: scheduleRes, isLoading: schLoading } = useSchedule();
   const { data: loan, isLoading: loanLoading } = useKprLoan();
 
-  const isLoading = statusLoading || schLoading || loanLoading;
+  // Initialize from saved goal once loaded
+  useEffect(() => {
+    if (savedGoal && !isInitialized) {
+      setTargetDate(savedGoal.targetDate.split('T')[0]);
+      setIsInitialized(true);
+    }
+  }, [savedGoal, isInitialized]);
+
+  const isLoading = statusLoading || schLoading || loanLoading || goalLoading;
   const schedule = scheduleRes?.docs ?? [];
 
   const goal = useMemo(() => {
@@ -197,19 +211,33 @@ function GoalsPage() {
             >
               Tanggal Target
             </label>
-            <input
-              id="goal-date"
-              type="date"
-              value={targetDate}
-              onChange={(e) => setTargetDate(e.target.value)}
-              className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-colors"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                id="goal-date"
+                type="date"
+                value={targetDate}
+                onChange={(e) => {
+                  setTargetDate(e.target.value);
+                  saveGoalMutation.mutate({ targetDate: e.target.value });
+                }}
+                className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-colors"
+              />
+              {saveGoalMutation.isPending && (
+                <Loader2 className="animate-spin text-blue-500" size={16} />
+              )}
+              {saveGoalMutation.isSuccess && !saveGoalMutation.isPending && (
+                <CheckCircle className="text-emerald-500" size={16} />
+              )}
+            </div>
           </div>
           <div className="text-sm text-gray-500">
             <p>
               {goal.monthsRemaining > 0
                 ? `${goal.monthsRemaining} bulan lagi menuju target`
                 : 'Target sudah terlewat'}
+            </p>
+            <p className="text-xs text-emerald-600 mt-1">
+              ✓ Tersimpan otomatis
             </p>
           </div>
         </div>

@@ -13,6 +13,7 @@ export const queryKeys = {
   extraPayments: (loanId: string) => ['kpr-extra-payments', loanId] as const,
   reminders: (loanId: string) => ['kpr-reminders', loanId] as const,
   simulations: (loanId: string) => ['kpr-simulations', loanId] as const,
+  goals: (loanId: string) => ['kpr-goals', loanId] as const,
   kprStatus: (loanId: string) => ['kpr-status', loanId] as const,
   insights: (loanId: string) => ['kpr-insights', loanId] as const,
 };
@@ -230,5 +231,37 @@ export function useSendMonthlyInsight() {
   return useMutation({
     mutationFn: ({ reminderId }: { reminderId: string }) =>
       api.sendMonthlyInsight(reminderId, loanId),
+  });
+}
+
+// ============================================================
+// Goals
+// ============================================================
+
+export function useGoal() {
+  const loanId = useLoanId();
+  return useQuery({
+    queryKey: queryKeys.goals(loanId),
+    queryFn: async () => {
+      const res = await api.fetchGoals(loanId);
+      return res.docs[0] ?? null;
+    },
+    enabled: !!loanId,
+  });
+}
+
+export function useSaveGoal() {
+  const queryClient = useQueryClient();
+  const loanId = useLoanId();
+  return useMutation({
+    mutationFn: ({ targetDate, monthlyIncome, monthlyExpenses, notes }: {
+      targetDate: string;
+      monthlyIncome?: number;
+      monthlyExpenses?: number;
+      notes?: string;
+    }) => api.saveGoal(loanId, targetDate, monthlyIncome, monthlyExpenses, notes),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.goals(loanId) });
+    },
   });
 }

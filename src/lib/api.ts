@@ -10,6 +10,7 @@ import type {
   KprExtraPayment,
   KprReminder,
   KprSimulation,
+  KprGoal,
   KprStatus,
   EarlyPayoffResult,
   ExtraPaymentResult,
@@ -244,6 +245,33 @@ export async function saveSimulation(
 
 export async function deleteSimulation(id: string) {
   return cmsFetch(`/api/kpr-simulations/${id}`, { method: 'DELETE' });
+}
+
+// ============================================================
+// Goals
+// ============================================================
+
+export async function fetchGoals(loanId: string) {
+  return cmsFetch<PayloadResponse<KprGoal>>(
+    `/api/kpr-goals?where[loan][equals]=${loanId}&sort=-createdAt&limit=1`,
+  );
+}
+
+export async function saveGoal(loanId: string, targetDate: string, monthlyIncome?: number, monthlyExpenses?: number, notes?: string) {
+  // First check if a goal already exists
+  const existing = await fetchGoals(loanId);
+  if (existing.docs.length > 0) {
+    // Update existing
+    return cmsFetch<KprGoal>(`/api/kpr-goals/${existing.docs[0].id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ targetDate, monthlyIncome, monthlyExpenses, notes }),
+    });
+  }
+  // Create new
+  return cmsFetch<KprGoal>('/api/kpr-goals', {
+    method: 'POST',
+    body: JSON.stringify({ loan: loanId, targetDate, monthlyIncome, monthlyExpenses, notes }),
+  });
 }
 
 // ============================================================
