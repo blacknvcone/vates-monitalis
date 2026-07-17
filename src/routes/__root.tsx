@@ -2,32 +2,145 @@ import { createRootRoute, Outlet, Link, useMatchRoute, useLocation } from '@tans
 import {
   LayoutDashboard, CalendarDays, Calculator, Lightbulb, Settings, Menu, X, LogOut, User,
   Banknote, History, Target, CalendarRange, GitCompareArrows, Building2, Download, TrendingDown, Bell,
-  Wallet, Sun, Moon,
+  Wallet, Sun, Moon, ChevronDown, ChevronRight,
 } from 'lucide-react';
-import { useState, useEffect, type ReactNode } from 'react';
+import { useState, useEffect, type ReactNode, type ElementType } from 'react';
 import { useAuth } from '@/lib/auth';
 
-const NAV_ITEMS = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/schedule', label: 'Tabel Angsuran', icon: CalendarDays },
-  { to: '/simulator', label: 'Simulator', icon: Calculator },
-  { to: '/insights', label: 'Insights', icon: Lightbulb },
-  { to: '/extra-payments', label: 'Pembayaran Ekstra', icon: Banknote },
-  { to: '/payment-history', label: 'Riwayat Pembayaran', icon: History },
-  { to: '/goals', label: 'Target Pelunasan', icon: Target },
-  { to: '/budget', label: 'Anggaran', icon: Wallet },
-  { to: '/cashflow', label: 'Arus Kas', icon: CalendarRange },
-  { to: '/scenario-compare', label: 'Perbandingan Skenario', icon: GitCompareArrows },
-  { to: '/refinance', label: 'Kalkulator Refinancing', icon: Building2 },
-  { to: '/inflation', label: 'Penyesuaian Inflasi', icon: TrendingDown },
-  { to: '/export', label: 'Export Laporan', icon: Download },
-  { to: '/notifications', label: 'Notifikasi', icon: Bell },
-  { to: '/settings', label: 'Settings', icon: Settings },
-] as const;
+// ============================================================
+// Navigation Groups
+// ============================================================
+
+interface NavItem {
+  to: string;
+  label: string;
+  icon: ElementType;
+}
+
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
+
+const NAV_GROUPS: NavGroup[] = [
+  {
+    label: 'Utama',
+    items: [
+      { to: '/', label: 'Dashboard', icon: LayoutDashboard },
+      { to: '/schedule', label: 'Tabel Angsuran', icon: CalendarDays },
+      { to: '/simulator', label: 'Simulator', icon: Calculator },
+      { to: '/insights', label: 'Insights', icon: Lightbulb },
+    ],
+  },
+  {
+    label: 'Perencanaan',
+    items: [
+      { to: '/budget', label: 'Anggaran', icon: Wallet },
+      { to: '/goals', label: 'Target Pelunasan', icon: Target },
+      { to: '/cashflow', label: 'Arus Kas', icon: CalendarRange },
+      { to: '/scenario-compare', label: 'Skenario', icon: GitCompareArrows },
+    ],
+  },
+  {
+    label: 'Pembayaran',
+    items: [
+      { to: '/extra-payments', label: 'Bayar Ekstra', icon: Banknote },
+      { to: '/payment-history', label: 'Riwayat', icon: History },
+      { to: '/refinance', label: 'Refinancing', icon: Building2 },
+    ],
+  },
+  {
+    label: 'Laporan',
+    items: [
+      { to: '/inflation', label: 'Inflasi', icon: TrendingDown },
+      { to: '/export', label: 'Export', icon: Download },
+      { to: '/notifications', label: 'Notifikasi', icon: Bell },
+    ],
+  },
+];
+
+// ============================================================
+// Nav Group Component
+// ============================================================
+
+function NavGroupSection({
+  group,
+  isOpen,
+  onToggle,
+  hasActiveChild,
+  onClose,
+}: {
+  group: NavGroup;
+  isOpen: boolean;
+  onToggle: () => void;
+  hasActiveChild: boolean;
+  onClose: () => void;
+}) {
+  const matchRoute = useMatchRoute();
+
+  return (
+    <div className="mb-1">
+      <button
+        onClick={onToggle}
+        className={`
+          w-full flex items-center justify-between px-3 py-2 text-xs font-semibold uppercase tracking-wider
+          transition-colors duration-150 rounded-lg
+          ${hasActiveChild ? 'text-white/90' : 'text-white/40 hover:text-white/60'}
+        `}
+      >
+        {group.label}
+        {isOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+      </button>
+
+      {isOpen && (
+        <div className="mt-0.5 space-y-0.5">
+          {group.items.map((item) => {
+            const isActive = item.to === '/'
+              ? matchRoute({ to: '/' })
+              : matchRoute({ to: item.to, fuzzy: true });
+
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                onClick={onClose}
+                className={`
+                  flex items-center gap-3 px-3 py-2 pl-5 rounded-lg text-sm font-medium
+                  transition-colors duration-150
+                  ${isActive ? 'bg-white/15 text-white' : 'text-white/70 hover:bg-white/10 hover:text-white'}
+                `}
+              >
+                <item.icon size={16} />
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// Sidebar
+// ============================================================
 
 function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  const matchRoute = useMatchRoute();
   const { user, logout } = useAuth();
+  const matchRoute = useMatchRoute();
+
+  // Track which groups are open — auto-expand the group with active route
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {};
+    NAV_GROUPS.forEach((g) => {
+      initial[g.label] = g.items.some((item) =>
+        item.to === '/' ? matchRoute({ to: '/' }) : matchRoute({ to: item.to, fuzzy: true })
+      );
+    });
+    return initial;
+  });
+
+  // Dark mode
   const [darkMode, setDarkMode] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('monetalis_theme') === 'dark';
@@ -46,7 +159,6 @@ function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) 
     }
   }, [darkMode]);
 
-  // Apply saved theme on mount
   useEffect(() => {
     const saved = localStorage.getItem('monetalis_theme');
     if (saved === 'dark') {
@@ -54,6 +166,15 @@ function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) 
       setDarkMode(true);
     }
   }, []);
+
+  const toggleGroup = (label: string) => {
+    setOpenGroups((prev) => ({ ...prev, [label]: !prev[label] }));
+  };
+
+  const hasActiveChild = (group: NavGroup) =>
+    group.items.some((item) =>
+      item.to === '/' ? matchRoute({ to: '/' }) : matchRoute({ to: item.to, fuzzy: true })
+    );
 
   return (
     <>
@@ -63,80 +184,76 @@ function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) 
 
       <aside
         className={`
-          fixed top-0 left-0 z-50 h-full w-64 bg-primary text-white
+          fixed top-0 left-0 z-50 h-full w-60 bg-primary text-white
           transform transition-transform duration-200 ease-in-out
           lg:translate-x-0 lg:static lg:z-auto
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
       >
-        <div className="flex items-center justify-between p-6 border-b border-white/10">
+        {/* Header */}
+        <div className="flex items-center justify-between p-5 border-b border-white/10">
           <div>
-            <h1 className="text-xl font-bold tracking-tight">Monetalis</h1>
-            <p className="text-xs text-white/60 mt-0.5">KPR Financial Dashboard</p>
+            <h1 className="text-lg font-bold tracking-tight">Monetalis</h1>
+            <p className="text-[10px] text-white/50 mt-0.5">KPR Dashboard</p>
           </div>
           <button onClick={onClose} className="lg:hidden p-1 hover:bg-white/10 rounded">
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 
-        <nav className="p-4 space-y-1">
-          {NAV_ITEMS.map((item) => {
-            const isActive = item.to === '/'
-              ? matchRoute({ to: '/' })
-              : matchRoute({ to: item.to, fuzzy: true });
-
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                onClick={onClose}
-                className={`
-                  flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium
-                  transition-colors duration-150
-                  ${isActive ? 'bg-white/15 text-white' : 'text-white/70 hover:bg-white/10 hover:text-white'}
-                `}
-              >
-                <item.icon size={18} />
-                {item.label}
-              </Link>
-            );
-          })}
+        {/* Navigation */}
+        <nav className="p-3 overflow-y-auto" style={{ height: 'calc(100vh - 180px)' }}>
+          {NAV_GROUPS.map((group) => (
+            <NavGroupSection
+              key={group.label}
+              group={group}
+              isOpen={openGroups[group.label] ?? false}
+              onToggle={() => toggleGroup(group.label)}
+              hasActiveChild={hasActiveChild(group)}
+              onClose={onClose}
+            />
+          ))}
         </nav>
 
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-white/10">
-          {/* Dark mode toggle */}
+        {/* Footer */}
+        <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-white/10">
           <button
             onClick={() => setDarkMode(!darkMode)}
-            className="w-full flex items-center gap-3 px-3 py-2.5 mb-2 text-sm text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+            className="w-full flex items-center gap-3 px-3 py-2 mb-2 text-xs text-white/60 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
           >
-            {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+            {darkMode ? <Sun size={14} /> : <Moon size={14} />}
             {darkMode ? 'Light Mode' : 'Dark Mode'}
           </button>
 
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
-              <User size={14} />
+          <div className="flex items-center gap-2 mb-2">
+            <div className="w-7 h-7 bg-white/20 rounded-full flex items-center justify-center">
+              <User size={12} />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white truncate">{user?.name || user?.email}</p>
-              <p className="text-[10px] text-white/50 capitalize">{user?.role}</p>
+              <p className="text-xs font-medium text-white truncate">{user?.name || user?.email}</p>
+              <p className="text-[9px] text-white/40 capitalize">{user?.role}</p>
             </div>
           </div>
-          <button
-            onClick={logout}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
-          >
-            <LogOut size={14} />
-            Keluar
-          </button>
-          <p className="text-[10px] text-white/30 text-center mt-2">
-            v1.0.0 &middot; BRI KPR
-          </p>
+
+          <div className="flex items-center justify-between">
+            <button
+              onClick={logout}
+              className="flex items-center gap-1.5 px-2 py-1.5 text-[10px] text-white/50 hover:text-white hover:bg-white/10 rounded transition-colors"
+            >
+              <LogOut size={12} />
+              Keluar
+            </button>
+            <p className="text-[9px] text-white/20">v2.1.0</p>
+          </div>
         </div>
       </aside>
     </>
   );
 }
+
+// ============================================================
+// Layout
+// ============================================================
 
 function AuthenticatedLayout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -166,12 +283,10 @@ function RootComponent() {
   const location = useLocation();
   const isLoginPage = location.pathname === '/login';
 
-  // Login page: render without auth guard
   if (isLoginPage) {
     return <Outlet />;
   }
 
-  // Loading state
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -180,13 +295,11 @@ function RootComponent() {
     );
   }
 
-  // Not authenticated: redirect to login
   if (!isAuthenticated) {
     window.location.href = '/login';
     return null;
   }
 
-  // Authenticated: render with sidebar layout
   return (
     <AuthenticatedLayout>
       <Outlet />
