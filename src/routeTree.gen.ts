@@ -23,6 +23,7 @@ import { Route as GoalsRouteImport } from './routes/goals'
 import { Route as ExtraPaymentsRouteImport } from './routes/extra-payments'
 import { Route as ExportRouteImport } from './routes/export'
 import { Route as CashflowRouteImport } from './routes/cashflow'
+import { Route as BudgetRouteImport } from './routes/budget'
 import { Route as IndexRouteImport } from './routes/index'
 
 const SimulatorRoute = SimulatorRouteImport.update({
@@ -95,6 +96,11 @@ const CashflowRoute = CashflowRouteImport.update({
   path: '/cashflow',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BudgetRoute = BudgetRouteImport.update({
+  id: '/budget',
+  path: '/budget',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -103,6 +109,7 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/budget': typeof BudgetRoute
   '/cashflow': typeof CashflowRoute
   '/export': typeof ExportRoute
   '/extra-payments': typeof ExtraPaymentsRoute
@@ -120,6 +127,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/budget': typeof BudgetRoute
   '/cashflow': typeof CashflowRoute
   '/export': typeof ExportRoute
   '/extra-payments': typeof ExtraPaymentsRoute
@@ -138,6 +146,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/budget': typeof BudgetRoute
   '/cashflow': typeof CashflowRoute
   '/export': typeof ExportRoute
   '/extra-payments': typeof ExtraPaymentsRoute
@@ -157,6 +166,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/budget'
     | '/cashflow'
     | '/export'
     | '/extra-payments'
@@ -174,6 +184,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/budget'
     | '/cashflow'
     | '/export'
     | '/extra-payments'
@@ -191,6 +202,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/budget'
     | '/cashflow'
     | '/export'
     | '/extra-payments'
@@ -209,6 +221,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  BudgetRoute: typeof BudgetRoute
   CashflowRoute: typeof CashflowRoute
   ExportRoute: typeof ExportRoute
   ExtraPaymentsRoute: typeof ExtraPaymentsRoute
@@ -325,6 +338,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CashflowRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/budget': {
+      id: '/budget'
+      path: '/budget'
+      fullPath: '/budget'
+      preLoaderRoute: typeof BudgetRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -337,6 +357,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  BudgetRoute: BudgetRoute,
   CashflowRoute: CashflowRoute,
   ExportRoute: ExportRoute,
   ExtraPaymentsRoute: ExtraPaymentsRoute,

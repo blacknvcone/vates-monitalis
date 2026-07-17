@@ -15,8 +15,42 @@
   --color-surface-dark: #0f172a;
 }
 
+:root {
+  --surface: #f8fafc;
+  --surface-alt: #f1f5f9;
+  --card-bg: #ffffff;
+  --text: #111827;
+  --text-secondary: #4b5563;
+  --text-muted: #6b7280;
+  --border: #e5e7eb;
+}
+
+.dark {
+  --surface: #0f172a;
+  --surface-alt: #1e293b;
+  --card-bg: #1e293b;
+  --text: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --border: #334155;
+}
+
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* Dark mode overrides */
+.dark body { background: var(--surface); color: var(--text); }
+.dark .bg-white { background-color: var(--card-bg); }
+.dark .text-gray-900 { color: var(--text); }
+.dark .text-gray-700 { color: var(--text-secondary); }
+.dark .text-gray-600 { color: var(--text-secondary); }
+.dark .text-gray-500 { color: var(--text-muted); }
+.dark .text-gray-400 { color: var(--text-muted); }
+.dark .border-gray-200 { border-color: var(--border); }
+.dark .bg-gray-50 { background-color: var(--surface-alt); }
+.dark .bg-gray-100 { background-color: var(--surface-alt); }
+.dark .border-b { border-color: var(--border); }
+.dark .divide-gray-200 > * + * { border-color: var(--border); }

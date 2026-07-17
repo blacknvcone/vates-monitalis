@@ -2,8 +2,9 @@ import { createRootRoute, Outlet, Link, useMatchRoute, useLocation } from '@tans
 import {
   LayoutDashboard, CalendarDays, Calculator, Lightbulb, Settings, Menu, X, LogOut, User,
   Banknote, History, Target, CalendarRange, GitCompareArrows, Building2, Download, TrendingDown, Bell,
+  Wallet, Sun, Moon,
 } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { useAuth } from '@/lib/auth';
 
 const NAV_ITEMS = [
@@ -14,6 +15,7 @@ const NAV_ITEMS = [
   { to: '/extra-payments', label: 'Pembayaran Ekstra', icon: Banknote },
   { to: '/payment-history', label: 'Riwayat Pembayaran', icon: History },
   { to: '/goals', label: 'Target Pelunasan', icon: Target },
+  { to: '/budget', label: 'Anggaran', icon: Wallet },
   { to: '/cashflow', label: 'Arus Kas', icon: CalendarRange },
   { to: '/scenario-compare', label: 'Perbandingan Skenario', icon: GitCompareArrows },
   { to: '/refinance', label: 'Kalkulator Refinancing', icon: Building2 },
@@ -26,6 +28,32 @@ const NAV_ITEMS = [
 function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const matchRoute = useMatchRoute();
   const { user, logout } = useAuth();
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('monetalis_theme') === 'dark';
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    if (darkMode) {
+      root.classList.add('dark');
+      localStorage.setItem('monetalis_theme', 'dark');
+    } else {
+      root.classList.remove('dark');
+      localStorage.setItem('monetalis_theme', 'light');
+    }
+  }, [darkMode]);
+
+  // Apply saved theme on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('monetalis_theme');
+    if (saved === 'dark') {
+      document.documentElement.classList.add('dark');
+      setDarkMode(true);
+    }
+  }, []);
 
   return (
     <>
@@ -76,6 +104,15 @@ function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) 
         </nav>
 
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-white/10">
+          {/* Dark mode toggle */}
+          <button
+            onClick={() => setDarkMode(!darkMode)}
+            className="w-full flex items-center gap-3 px-3 py-2.5 mb-2 text-sm text-white/70 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+          >
+            {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+            {darkMode ? 'Light Mode' : 'Dark Mode'}
+          </button>
+
           <div className="flex items-center gap-3 mb-3">
             <div className="w-8 h-8 bg-white/20 rounded-full flex items-center justify-center">
               <User size={14} />
