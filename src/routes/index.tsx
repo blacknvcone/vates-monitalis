@@ -7,6 +7,7 @@ import {
   Wallet,
   Clock,
   AlertTriangle,
+  Loader2,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -21,7 +22,10 @@ import {
   Cell,
 } from 'recharts';
 import { formatIDR, formatIDRCompact, formatPct, formatMonthLabel } from '@/lib/format';
-import { MOCK_LOAN, MOCK_PHASES, getCurrentStatus, generateMockSchedule } from '@/lib/mock-data';
+import { useKprStatus, useKprLoan, useRateTiers, useSchedule } from '@/hooks';
+import { adaptCmsStatus, adaptRateTiersToPhases } from '@/lib/cms-adapters';
+import type { KprStatus, PhaseInfo, KprLoan } from '@/types';
+import type { CmsStatusResponse } from '@/lib/api';
 
 // ============================================================
 // Components
@@ -70,12 +74,12 @@ function SummaryCard({
   );
 }
 
-function PhaseTimeline({ currentPhase }: { currentPhase: number }) {
+function PhaseTimeline({ currentPhase, phases }: { currentPhase: number; phases: PhaseInfo[] }) {
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6">
       <h3 className="text-sm font-semibold text-gray-700 mb-4">Timeline Bunga Berjenjang</h3>
       <div className="flex gap-2 items-center">
-        {MOCK_PHASES.map((phase) => {
+        {phases.map((phase) => {
           const isActive = phase.phase === currentPhase;
           const isPast = phase.phase < currentPhase;
           const widthPct = ((phase.endMonth - phase.startMonth + 1) / 240) * 100;
@@ -107,14 +111,13 @@ function PhaseTimeline({ currentPhase }: { currentPhase: number }) {
   );
 }
 
-function BalanceChart() {
-  const schedule = useMemo(() => generateMockSchedule(), []);
+function BalanceChart({ schedule }: { schedule: { monthNumber: number; outstandingBalance: number }[] }) {
   const chartData = useMemo(() => {
     const milestones = [0, 6, 12, 18, 24, 30, 33, 36, 48, 60, 72, 120, 180, 240];
-    return milestones.map((m) => ({
-      month: m,
-      balance: schedule[m]?.outstandingBalance ?? 0,
-    }));
+    return milestones.map((m) => {
+      const entry = schedule.find((e) => e.monthNumber === m);
+      return { month: m, balance: entry?.outstandingBalance ?? 0 };
+    });
   }, [schedule]);
 
   return (
@@ -174,7 +177,7 @@ function PaymentBreakdownChart({ principal, interest }: { principal: number; int
   );
 }
 
-function NextPaymentCard({ status }: { status: ReturnType<typeof getCurrentStatus> }) {
+function NextPaymentCard({ status, firstPayment }: { status: KprStatus; firstPayment: string }) {
   return (
     <div className="bg-gradient-to-br from-primary to-primary-light text-white rounded-xl p-6">
       <div className="flex items-center gap-2 mb-4">
@@ -182,7 +185,7 @@ function NextPaymentCard({ status }: { status: ReturnType<typeof getCurrentStatu
         <h3 className="text-sm font-semibold">Angsuran Berikutnya</h3>
       </div>
       <p className="text-3xl font-bold">{formatIDR(status.nextPaymentAmount)}</p>
-      <p className="text-white/70 text-sm mt-1">{formatMonthLabel(status.currentMonth + 1, '2023-11-01')}</p>
+      <p className="text-white/70 text-sm mt-1">{formatMonthLabel(status.currentMonth + 1, firstPayment)}</p>
 
       <div className="mt-4 pt-4 border-t border-white/20 grid grid-cols-2 gap-3 text-sm">
         <div>
@@ -206,8 +209,11 @@ function NextPaymentCard({ status }: { status: ReturnType<typeof getCurrentStatu
   );
 }
 
-function MilestoneAlert({ monthsUntil, nextRate }: { monthsUntil: number; nextRate: number }) {
+function MilestoneAlert({ monthsUntil, nextRate, currentInstallment }: { monthsUntil: number; nextRate: number; currentInstallment: number }) {
   if (monthsUntil > 12) return null;
+
+  // Calculate next phase installment (approximate)
+  const nextInstallment = currentInstallment * 1.25; // rough estimate
 
   return (
     <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
@@ -217,10 +223,28 @@ function MilestoneAlert({ monthsUntil, nextRate }: { monthsUntil: number; nextRa
           {monthsUntil} bulan lagi bunga naik ke {formatPct(nextRate)}
         </p>
         <p className="text-xs text-amber-600 mt-1">
-          Angsuran akan naik dari {formatIDR(2_681_900)} menjadi {formatIDR(3_367_400)}/bulan.
+          Angsuran akan naik dari {formatIDR(currentInstallment)} menjadi ~{formatIDR(nextInstallment)}/bulan.
           Pertimbangkan pelunasan sebelum perubahan bunga.
         </p>
       </div>
+    </div>
+  );
+}
+
+function LoadingState() {
+  return (
+    <div className="flex items-center justify-center h-64">
+      <Loader2 className="animate-spin text-primary" size={32} />
+      <span className="ml-3 text-gray-500">Memuat data KPR...</span>
+    </div>
+  );
+}
+
+function ErrorState({ message }: { message: string }) {
+  return (
+    <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+      <p className="text-sm font-semibold text-red-700">Gagal memuat data</p>
+      <p className="text-xs text-red-600 mt-1">{message}</p>
     </div>
   );
 }
@@ -230,8 +254,24 @@ function MilestoneAlert({ monthsUntil, nextRate }: { monthsUntil: number; nextRa
 // ============================================================
 
 function DashboardPage() {
-  const status = useMemo(() => getCurrentStatus(), []);
-  const totalCost20yr = 858_782_131;
+  const { data: cmsStatus, isLoading: statusLoading, error: statusError } = useKprStatus();
+  const { data: loanData, isLoading: loanLoading } = useKprLoan();
+  const { data: tiersData, isLoading: tiersLoading } = useRateTiers();
+  const { data: scheduleData, isLoading: scheduleLoading } = useSchedule();
+
+  const isLoading = statusLoading || loanLoading || tiersLoading || scheduleLoading;
+
+  if (isLoading) return <LoadingState />;
+  if (statusError) return <ErrorState message={String(statusError)} />;
+  if (!cmsStatus) return <ErrorState message="Data status tidak ditemukan" />;
+
+  const status = adaptCmsStatus(cmsStatus);
+  const loan = loanData as KprLoan | undefined;
+  const tiers = tiersData?.docs ?? [];
+  const phases = adaptRateTiersToPhases(tiers, loan?.firstPayment ?? '2023-11-01');
+  const schedule = scheduleData?.docs ?? [];
+
+  const totalCost20yr = schedule.reduce((sum, e) => sum + e.totalInstallment, 0);
   const savingsIfClose = totalCost20yr - (status.totalPaid + status.outstandingBalance * 1.025);
 
   return (
@@ -239,12 +279,16 @@ function DashboardPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
         <p className="text-sm text-gray-500 mt-1">
-          Ringkasan keuangan KPR {MOCK_LOAN.bankName} &middot; {MOCK_LOAN.borrowerName}
+          Ringkasan keuangan KPR {cmsStatus.bankName} &middot; {cmsStatus.borrowerName}
         </p>
       </div>
 
       {status.monthsUntilNextPhase && (
-        <MilestoneAlert monthsUntil={status.monthsUntilNextPhase} nextRate={status.nextPhaseRate!} />
+        <MilestoneAlert
+          monthsUntil={status.monthsUntilNextPhase}
+          nextRate={status.nextPhaseRate!}
+          currentInstallment={status.currentInstallment}
+        />
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -284,36 +328,36 @@ function DashboardPage() {
         />
       </div>
 
-      <PhaseTimeline currentPhase={status.currentPhase} />
+      <PhaseTimeline currentPhase={status.currentPhase} phases={phases} />
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2">
-          <BalanceChart />
+          <BalanceChart schedule={schedule} />
         </div>
         <PaymentBreakdownChart principal={status.totalPrincipalPaid} interest={status.totalInterestPaid} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <NextPaymentCard status={status} />
+        <NextPaymentCard status={status} firstPayment={loan?.firstPayment ?? '2023-11-01'} />
 
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <h3 className="text-sm font-semibold text-gray-700 mb-4">Quick Stats</h3>
           <div className="space-y-3">
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Harga Rumah</span>
-              <span className="font-medium">{formatIDR(MOCK_LOAN.housePrice)}</span>
+              <span className="font-medium">{loan ? formatIDR(loan.housePrice) : '-'}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Uang Muka</span>
-              <span className="font-medium">{formatIDR(MOCK_LOAN.downPayment)} (23%)</span>
+              <span className="font-medium">{loan ? `${formatIDR(loan.downPayment)} (${((loan.downPayment / loan.housePrice) * 100).toFixed(0)}%)` : '-'}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Pokok Pinjaman</span>
-              <span className="font-medium">{formatIDR(MOCK_LOAN.loanAmount)}</span>
+              <span className="font-medium">{formatIDR(cmsStatus.loanAmount)}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-gray-500">Total Bunga 20 Tahun</span>
-              <span className="font-medium text-red-600">{formatIDR(443_782_131)}</span>
+              <span className="font-medium text-red-600">{formatIDR(totalCost20yr - cmsStatus.loanAmount)}</span>
             </div>
             <div className="border-t pt-3 flex justify-between text-sm">
               <span className="text-gray-500">Hemat jika lunasi Okt 2026</span>

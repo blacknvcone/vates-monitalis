@@ -10,10 +10,10 @@ import {
   Target,
   ArrowRight,
   Wallet,
-  Receipt,
   TrendingUp,
   CalendarDays,
   CircleDollarSign,
+  Loader2,
 } from 'lucide-react';
 import {
   BarChart,
@@ -29,111 +29,85 @@ import {
 } from 'recharts';
 import { formatIDR, formatPct, formatMonthLabel } from '@/lib/format';
 import { cn } from '@/lib/utils';
-import {
-  generateMockSchedule,
-  getCurrentStatus,
-  MOCK_LOAN,
-} from '@/lib/mock-data';
-
-// ============================================================
-// Mock Loan Data (mirrors dashboard)
-// ============================================================
-
-const LOAN = {
-  loanAmount: 415_000_000,
-  tenorMonths: 240,
-  firstPayment: '2023-11-01',
-  penaltyBeforeMinTenor: 10,
-  penaltyAfterMinTenor: 2.5,
-  minTenorMonths: 36,
-};
-
-const PHASES = [
-  { startMonth: 1, endMonth: 36, rate: 4.75, installment: 2_681_900 },
-  { startMonth: 37, endMonth: 72, rate: 8.00, installment: 3_367_400 },
-  { startMonth: 73, endMonth: 240, rate: 10.25, installment: 3_815_600 },
-];
-
-const TOTAL_COST_20YR = 858_782_131;
-const CURRENT_MONTH = 33;
+import { useKprLoan, useRateTiers, useSchedule, useKprStatus } from '@/hooks';
+import { adaptCmsStatus, adaptRateTiersToPhases } from '@/lib/cms-adapters';
+import type {
+  KprLoan,
+  KprRateTier,
+  KprScheduleEntry,
+  KprStatus,
+  PhaseInfo,
+} from '@/types';
 
 // ============================================================
 // Helpers
 // ============================================================
 
-function getPhase(month: number) {
-  return PHASES.find((p) => month >= p.startMonth && month <= p.endMonth) ?? PHASES[PHASES.length - 1];
+function getPhase(month: number, phases: PhaseInfo[]) {
+  return phases.find((p) => month >= p.startMonth && month <= p.endMonth) ?? phases[phases.length - 1];
 }
 
-function getRate(month: number) {
-  return getPhase(month).rate;
+function getRate(month: number, phases: PhaseInfo[]) {
+  return getPhase(month, phases).rate;
 }
 
-function getInstallment(month: number) {
-  return getPhase(month).installment;
+function getInstallment(month: number, phases: PhaseInfo[]) {
+  return getPhase(month, phases).installment;
 }
 
-/**
- * Generate a full 240-month amortization schedule using the tiered rates.
- * Returns array of { month, rate, installment, interestPortion, principalPortion, balance }
- */
-function generateSchedule() {
-  const schedule: {
-    month: number;
-    rate: number;
-    installment: number;
-    interestPortion: number;
-    principalPortion: number;
-    balance: number;
-  }[] = [];
-
-  let balance = LOAN.loanAmount;
-  for (let m = 1; m <= 240; m++) {
-    const rate = getRate(m);
-    const monthlyRate = rate / 100 / 12;
-    const installment = getInstallment(m);
-    const interestPortion = balance * monthlyRate;
-    const principalPortion = Math.min(installment - interestPortion, balance);
-    balance = Math.max(balance - principalPortion, 0);
-    schedule.push({
-      month: m,
-      rate,
-      installment,
-      interestPortion,
-      principalPortion,
-      balance,
-    });
-  }
-  return schedule;
+/** Build a monthNumber → entry lookup from the schedule docs */
+function scheduleToMap(schedule: KprScheduleEntry[]): Map<number, KprScheduleEntry> {
+  return new Map(schedule.map((e) => [e.monthNumber, e]));
 }
 
-const SCHEDULE = generateSchedule();
+/** Compute the total cost over the full tenor from schedule data */
+function computeTotalCost(schedule: KprScheduleEntry[]): number {
+  return schedule
+    .filter((e) => e.monthNumber > 0)
+    .reduce((sum, e) => sum + e.totalInstallment, 0);
+}
+
+/** Derive the current (last paid) month from schedule data */
+function computeCurrentMonth(schedule: KprScheduleEntry[]): number {
+  const paid = schedule.filter((e) => e.isPaid && e.monthNumber > 0);
+  return paid.length > 0 ? Math.max(...paid.map((e) => e.monthNumber)) : 0;
+}
 
 // ============================================================
 // Simulation: Early Payoff
 // ============================================================
 
-function computeEarlyPayoff(targetMonth: number) {
-  if (targetMonth < 1 || targetMonth > 240) return null;
+function computeEarlyPayoff(
+  targetMonth: number,
+  scheduleMap: Map<number, KprScheduleEntry>,
+  loan: KprLoan,
+  phases: PhaseInfo[],
+  totalCost20yr: number,
+  tenorMonths: number,
+) {
+  if (targetMonth < 1 || targetMonth > tenorMonths) return null;
 
-  const entry = SCHEDULE[targetMonth - 1];
-  const outstandingPrincipal = entry.balance;
-  const currentRate = getRate(targetMonth);
-  const penaltyRate = targetMonth >= LOAN.minTenorMonths
-    ? LOAN.penaltyAfterMinTenor / 100
-    : LOAN.penaltyBeforeMinTenor / 100;
+  const entry = scheduleMap.get(targetMonth);
+  if (!entry) return null;
+
+  const outstandingPrincipal = entry.outstandingBalance;
+  const currentRate = getRate(targetMonth, phases);
+  const penaltyRate = targetMonth >= loan.minTenorMonths
+    ? loan.penaltyAfterMinTenor / 100
+    : loan.penaltyBeforeMinTenor / 100;
   const penaltyAmount = outstandingPrincipal * penaltyRate;
   const totalToPayBank = outstandingPrincipal + penaltyAmount;
 
   // Sum installments already paid from month 1 to targetMonth
   let alreadyPaid = 0;
-  for (let i = 0; i < targetMonth; i++) {
-    alreadyPaid += SCHEDULE[i].installment;
+  for (let i = 1; i <= targetMonth; i++) {
+    const e = scheduleMap.get(i);
+    if (e) alreadyPaid += e.totalInstallment;
   }
 
   const grandTotal = alreadyPaid + totalToPayBank;
-  const savingsVsFull = TOTAL_COST_20YR - grandTotal;
-  const savingsPct = (savingsVsFull / TOTAL_COST_20YR) * 100;
+  const savingsVsFull = totalCost20yr - grandTotal;
+  const savingsPct = (savingsVsFull / totalCost20yr) * 100;
 
   // Break-even: months of interest savings to offset penalty
   const monthlyInterest = outstandingPrincipal * (currentRate / 100 / 12);
@@ -158,29 +132,38 @@ function computeEarlyPayoff(targetMonth: number) {
 // Simulation: Extra Payment
 // ============================================================
 
-function computeExtraPayment(monthlyExtra: number, startMonth: number) {
-  if (monthlyExtra <= 0 || startMonth < 1 || startMonth > 240) return null;
+function computeExtraPayment(
+  monthlyExtra: number,
+  startMonth: number,
+  schedule: KprScheduleEntry[],
+  loan: KprLoan,
+  phases: PhaseInfo[],
+  totalCost20yr: number,
+  tenorMonths: number,
+) {
+  if (monthlyExtra <= 0 || startMonth < 1 || startMonth > tenorMonths) return null;
 
   // Simulate original schedule totals
   let totalInterestOriginal = 0;
-  for (let i = 0; i < 240; i++) {
-    totalInterestOriginal += SCHEDULE[i].interestPortion;
+  for (let i = 1; i <= tenorMonths; i++) {
+    const e = schedule.find((s) => s.monthNumber === i);
+    if (e) totalInterestOriginal += e.interestPortion;
   }
 
   // Simulate with extra payment
-  let balance = LOAN.loanAmount;
+  let balance = loan.loanAmount;
   let month = 0;
   let totalInterestNew = 0;
   const amortCurve: { month: number; original: number; new: number }[] = [];
 
-  while (balance > 0 && month < 240) {
+  while (balance > 0 && month < tenorMonths) {
     month++;
-    const rate = getRate(month);
+    const rate = getRate(month, phases);
     const monthlyRate = rate / 100 / 12;
     const interestPortion = balance * monthlyRate;
     totalInterestNew += interestPortion;
 
-    const baseInstallment = getInstallment(month);
+    const baseInstallment = getInstallment(month, phases);
     const principalPortion = baseInstallment - interestPortion;
     const extra = month >= startMonth ? monthlyExtra : 0;
     const totalPrincipalPaid = Math.min(principalPortion + extra, balance);
@@ -188,24 +171,24 @@ function computeExtraPayment(monthlyExtra: number, startMonth: number) {
 
     // Record every 6 months for chart
     if (month % 6 === 0 || balance === 0) {
-      const origEntry = SCHEDULE[Math.min(month - 1, 239)];
+      const origEntry = schedule.find((s) => s.monthNumber === Math.min(month, tenorMonths));
       amortCurve.push({
         month,
-        original: origEntry.balance,
+        original: origEntry?.outstandingBalance ?? 0,
         new: balance,
       });
     }
   }
 
   const newTenor = month;
-  const originalTenor = 240;
+  const originalTenor = tenorMonths;
   const monthsSaved = originalTenor - newTenor;
   const interestSaved = totalInterestOriginal - totalInterestNew;
 
-  // Build full curve to 240 for display
+  // Build full curve to tenorMonths for display
   const lastPoint = amortCurve[amortCurve.length - 1];
-  if (lastPoint && lastPoint.month < 240) {
-    amortCurve.push({ month: 240, original: 0, new: 0 });
+  if (lastPoint && lastPoint.month < tenorMonths) {
+    amortCurve.push({ month: tenorMonths, original: 0, new: 0 });
   }
 
   return {
@@ -227,39 +210,70 @@ function computeSavingsSimulation(
   monthlyIncome: number,
   monthlyExpenses: number,
   currentSavings: number,
+  status: KprStatus,
+  schedule: KprScheduleEntry[],
+  loan: KprLoan,
+  _rateTiers: KprRateTier[],
+  firstPayment: string,
 ) {
-  const status = getCurrentStatus();
-  const schedule = generateMockSchedule();
-  const loan = MOCK_LOAN;
+  const scheduleMap = scheduleToMap(schedule);
 
-  const monthlyKPR = status.currentInstallment;
-  const monthlySavings = monthlyIncome - monthlyExpenses - monthlyKPR;
+  // Phase-aware: current installment depends on which month we're in
+  const currentKPR = status.currentInstallment;
+  const currentSavingsRate = monthlyIncome - monthlyExpenses - currentKPR;
 
-  if (monthlySavings <= 0) {
+  if (currentSavingsRate <= 0) {
     return {
       error: 'Pengeluaran + angsuran KPR melebihi atau sama dengan pemasukan. Tidak ada sisa untuk ditabung.',
-      monthlyKPR,
-      monthlySavings,
+      currentKPR,
+      currentSavingsRate,
     };
   }
 
   let savings = currentSavings;
   let month = 0;
+  let totalKPRPaid = 0;
+  let totalInterestPaid = 0;
+  let phaseTransitionMonth: number | null = null;
   const savingsHistory: {
     month: number;
     cumulativeSavings: number;
     kprBalance: number;
     needed: number;
     penalty: number;
+    kprInstallment: number;
   }[] = [];
 
   while (month < status.monthsRemaining) {
     month++;
-    savings += monthlySavings;
 
     const targetMonth = status.currentMonth + month;
-    const entry = schedule[targetMonth];
+    const entry = scheduleMap.get(targetMonth);
     if (!entry) break;
+
+    // Phase-aware installment: uses actual schedule data for each month
+    const kprInstallment = entry.totalInstallment;
+    const interestPortion = entry.interestPortion;
+    const monthlySavings = monthlyIncome - monthlyExpenses - kprInstallment;
+
+    // Track first phase transition
+    if (!phaseTransitionMonth && kprInstallment !== currentKPR) {
+      phaseTransitionMonth = month;
+    }
+
+    // If KPR exceeds income at any point, stop — not feasible
+    if (monthlySavings <= 0) {
+      return {
+        error: `Pada bulan ke-${month} (KPR ${formatIDR(kprInstallment)}), pengeluaran + angsuran melebihi pemasukan. Tidak ada sisa untuk ditabung.`,
+        currentKPR,
+        currentSavingsRate,
+        phaseTransitionMonth,
+      };
+    }
+
+    savings += monthlySavings;
+    totalKPRPaid += kprInstallment;
+    totalInterestPaid += interestPortion;
 
     const balance = entry.outstandingBalance;
     const isAfterMinTenor = targetMonth >= loan.minTenorMonths;
@@ -271,32 +285,42 @@ function computeSavingsSimulation(
 
     // Sample every 3 months for chart, plus first and last
     if (month <= 3 || month % 3 === 0 || savings >= needed) {
-      savingsHistory.push({ month, cumulativeSavings: savings, kprBalance: balance, needed, penalty });
+      savingsHistory.push({
+        month,
+        cumulativeSavings: savings,
+        kprBalance: balance,
+        needed,
+        penalty,
+        kprInstallment,
+      });
     }
 
     if (savings >= needed) {
-      // Calculate optimal payoff date
       const payoffDate = entry.calendarDate;
 
       // Calculate what happens if they invest instead (assume 6% annual return)
       const investRate = 0.06 / 12;
       let investSavings = currentSavings;
+      // Need to recompute per-phase savings for invest comparison
       for (let m = 1; m <= month; m++) {
-        investSavings = investSavings * (1 + investRate) + monthlySavings;
+        const e = scheduleMap.get(status.currentMonth + m);
+        const kpr = e ? e.totalInstallment : currentKPR;
+        const savable = monthlyIncome - monthlyExpenses - kpr;
+        investSavings = investSavings * (1 + investRate) + savable;
       }
 
       // Total interest that would be paid if they keep paying KPR
       let remainingInterest = 0;
-      for (let m = status.currentMonth + month + 1; m <= 240; m++) {
-        const e = schedule[m];
+      for (let m = status.currentMonth + month + 1; m <= loan.tenorMonths; m++) {
+        const e = scheduleMap.get(m);
         if (e) remainingInterest += e.interestPortion;
       }
 
       return {
         monthlyIncome,
         monthlyExpenses,
-        monthlyKPR,
-        monthlySavings,
+        currentKPR,
+        currentSavingsRate,
         currentSavings,
         monthsToGoal: month,
         optimalMonth: targetMonth,
@@ -307,6 +331,9 @@ function computeSavingsSimulation(
         penaltyRate,
         needed,
         savingsHistory,
+        totalKPRPaid,
+        totalInterestPaid,
+        phaseTransitionMonth,
         investComparison: {
           investValue: Math.round(investSavings),
           savingsValue: savings,
@@ -320,8 +347,9 @@ function computeSavingsSimulation(
 
   return {
     error: 'Tidak bisa mengumpulkan cukup dana dalam sisa tenor yang tersedia.',
-    monthlyKPR,
-    monthlySavings,
+    currentKPR,
+    currentSavingsRate,
+    phaseTransitionMonth,
   };
 }
 
@@ -392,20 +420,58 @@ function TabButton({
   );
 }
 
+function LoadingState() {
+  return (
+    <div className="flex items-center justify-center h-64">
+      <Loader2 className="animate-spin text-primary" size={32} />
+      <span className="ml-3 text-gray-500">Memuat data simulasi...</span>
+    </div>
+  );
+}
+
+function ErrorState({ message }: { message: string }) {
+  return (
+    <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+      <p className="text-sm font-semibold text-red-700">Gagal memuat data</p>
+      <p className="text-xs text-red-600 mt-1">{message}</p>
+    </div>
+  );
+}
+
 // ============================================================
 // Tab 1: Early Payoff
 // ============================================================
 
-function EarlyPayoffTab() {
-  const [targetMonth, setTargetMonth] = useState(36);
+function EarlyPayoffTab({
+  loan,
+  phases,
+  scheduleMap,
+  currentMonth,
+  totalCost20yr,
+  tenorMonths,
+}: {
+  loan: KprLoan;
+  phases: PhaseInfo[];
+  scheduleMap: Map<number, KprScheduleEntry>;
+  currentMonth: number;
+  totalCost20yr: number;
+  tenorMonths: number;
+}) {
+  const [targetMonth, setTargetMonth] = useState(currentMonth + 1);
 
-  const result = useMemo(() => computeEarlyPayoff(targetMonth), [targetMonth]);
+  const result = useMemo(
+    () => computeEarlyPayoff(targetMonth, scheduleMap, loan, phases, totalCost20yr, tenorMonths),
+    [targetMonth, scheduleMap, loan, phases, totalCost20yr, tenorMonths],
+  );
 
   // Comparison table for specific months
-  const comparisonMonths = [36, 48, 60, 72, 120];
+  const comparisonMonths = useMemo(
+    () => [36, 48, 60, 72, 120].filter((m) => m > currentMonth && m <= tenorMonths),
+    [currentMonth, tenorMonths],
+  );
   const comparisons = useMemo(
-    () => comparisonMonths.map((m) => computeEarlyPayoff(m)!).filter(Boolean),
-    [],
+    () => comparisonMonths.map((m) => computeEarlyPayoff(m, scheduleMap, loan, phases, totalCost20yr, tenorMonths)!).filter(Boolean),
+    [comparisonMonths, scheduleMap, loan, phases, totalCost20yr, tenorMonths],
   );
 
   const barData = useMemo(
@@ -433,8 +499,8 @@ function EarlyPayoffTab() {
           <div className="flex items-center gap-4">
             <input
               type="range"
-              min={CURRENT_MONTH + 1}
-              max={240}
+              min={currentMonth + 1}
+              max={tenorMonths}
               value={targetMonth}
               onChange={(e) => setTargetMonth(Number(e.target.value))}
               className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-primary"
@@ -442,12 +508,12 @@ function EarlyPayoffTab() {
             <div className="flex items-center gap-2">
               <input
                 type="number"
-                min={CURRENT_MONTH + 1}
-                max={240}
+                min={currentMonth + 1}
+                max={tenorMonths}
                 value={targetMonth}
                 onChange={(e) => {
                   const v = Number(e.target.value);
-                  if (v >= CURRENT_MONTH + 1 && v <= 240) setTargetMonth(v);
+                  if (v >= currentMonth + 1 && v <= tenorMonths) setTargetMonth(v);
                 }}
                 className="w-20 px-3 py-2 border border-gray-300 rounded-lg text-sm text-center font-semibold focus:ring-2 focus:ring-primary focus:border-primary"
               />
@@ -456,16 +522,16 @@ function EarlyPayoffTab() {
           </div>
 
           <div className="flex justify-between text-xs text-gray-400">
-            <span>Bulan {CURRENT_MONTH + 1} (sekarang)</span>
-            <span>Bulan 240 (akhir tenor)</span>
+            <span>Bulan {currentMonth + 1} (sekarang)</span>
+            <span>Bulan {tenorMonths} (akhir tenor)</span>
           </div>
 
           <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
             <AlertTriangle size={14} className="text-amber-600 flex-shrink-0" />
             <p className="text-xs text-amber-700">
               Pelunasan di bulan {targetMonth} ={' '}
-              <strong>{targetMonth < LOAN.minTenorMonths ? `${LOAN.penaltyBeforeMinTenor}% penalti` : `${LOAN.penaltyAfterMinTenor}% penalti`}</strong>
-              {targetMonth < LOAN.minTenorMonths
+              <strong>{targetMonth < loan.minTenorMonths ? `${loan.penaltyBeforeMinTenor}% penalti` : `${loan.penaltyAfterMinTenor}% penalti`}</strong>
+              {targetMonth < loan.minTenorMonths
                 ? ' (sebelum tenor minimum 36 bulan)'
                 : ' (setelah tenor minimum)'}
             </p>
@@ -596,13 +662,25 @@ function EarlyPayoffTab() {
 // Tab 2: Extra Payment
 // ============================================================
 
-function ExtraPaymentTab() {
+function ExtraPaymentTab({
+  loan,
+  phases,
+  schedule,
+  totalCost20yr,
+  tenorMonths,
+}: {
+  loan: KprLoan;
+  phases: PhaseInfo[];
+  schedule: KprScheduleEntry[];
+  totalCost20yr: number;
+  tenorMonths: number;
+}) {
   const [monthlyExtra, setMonthlyExtra] = useState(1); // in millions
   const [startMonth, setStartMonth] = useState(34);
 
   const result = useMemo(
-    () => computeExtraPayment(monthlyExtra * 1_000_000, startMonth),
-    [monthlyExtra, startMonth],
+    () => computeExtraPayment(monthlyExtra * 1_000_000, startMonth, schedule, loan, phases, totalCost20yr, tenorMonths),
+    [monthlyExtra, startMonth, schedule, loan, phases, totalCost20yr, tenorMonths],
   );
 
   if (!result) return null;
@@ -645,11 +723,11 @@ function ExtraPaymentTab() {
               <input
                 type="number"
                 min={1}
-                max={240}
+                max={tenorMonths}
                 value={startMonth}
                 onChange={(e) => {
                   const v = Number(e.target.value);
-                  if (v >= 1 && v <= 240) setStartMonth(v);
+                  if (v >= 1 && v <= tenorMonths) setStartMonth(v);
                 }}
                 className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm font-semibold focus:ring-2 focus:ring-primary focus:border-primary"
               />
@@ -685,8 +763,8 @@ function ExtraPaymentTab() {
         />
         <SimCard
           title="Total Pembayaran"
-          value={formatIDR(LOAN.loanAmount + result.totalInterestNew)}
-          subtitle={`vs ${formatIDR(TOTAL_COST_20YR)} asli`}
+          value={formatIDR(loan.loanAmount + result.totalInterestNew)}
+          subtitle={`vs ${formatIDR(totalCost20yr)} asli`}
           icon={Banknote}
           color="red"
         />
@@ -758,8 +836,19 @@ function ExtraPaymentTab() {
 // Tab 3: Savings Simulation (Simulasi Menabung)
 // ============================================================
 
-function SavingsTab() {
-  const status = getCurrentStatus();
+function SavingsTab({
+  status,
+  schedule,
+  loan,
+  rateTiers,
+  firstPayment,
+}: {
+  status: KprStatus;
+  schedule: KprScheduleEntry[];
+  loan: KprLoan;
+  rateTiers: KprRateTier[];
+  firstPayment: string;
+}) {
   const [monthlyIncome, setMonthlyIncome] = useState(10);
   const [monthlyExpenses, setMonthlyExpenses] = useState(4);
   const [currentSavings, setCurrentSavings] = useState(50);
@@ -770,15 +859,20 @@ function SavingsTab() {
         monthlyIncome * 1_000_000,
         monthlyExpenses * 1_000_000,
         currentSavings * 1_000_000,
+        status,
+        schedule,
+        loan,
+        rateTiers,
+        firstPayment,
       ),
-    [monthlyIncome, monthlyExpenses, currentSavings],
+    [monthlyIncome, monthlyExpenses, currentSavings, status, schedule, loan, rateTiers, firstPayment],
   );
 
   const hasError = 'error' in result && result.error !== null;
 
   // Format payoff date
   const payoffDateFormatted = !hasError && 'payoffDate' in result && result.payoffDate
-    ? formatMonthLabel(result.optimalMonth, MOCK_LOAN.firstPayment)
+    ? formatMonthLabel(result.optimalMonth, firstPayment)
     : null;
 
   return (
@@ -853,13 +947,44 @@ function SavingsTab() {
         </div>
 
         {/* Info box */}
-        <div className="mt-4 flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
-          <CircleDollarSign size={14} className="text-blue-600 flex-shrink-0" />
-          <p className="text-xs text-blue-700">
-            Angsuran KPR saat ini: <strong>{formatIDR(status.currentInstallment)}</strong> / bulan
-            (Fase {status.currentPhase}, bunga {formatPct(status.currentRate)})
-          </p>
-        </div>
+        {(() => {
+          const nextPhase = rateTiers.find(
+            (t) => t.startMonth > status.currentMonth,
+          );
+          return (
+            <div className="mt-4 space-y-2">
+              <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg">
+                <CircleDollarSign
+                  size={14}
+                  className="text-blue-600 flex-shrink-0"
+                />
+                <p className="text-xs text-blue-700">
+                  Angsuran KPR saat ini:{' '}
+                  <strong>{formatIDR(status.currentInstallment)}</strong> / bulan
+                  (Fase {status.currentPhase}, bunga{' '}
+                  {formatPct(status.currentRate)})
+                </p>
+              </div>
+              {nextPhase && (
+                <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
+                  <AlertTriangle
+                    size={14}
+                    className="text-amber-600 flex-shrink-0"
+                  />
+                  <p className="text-xs text-amber-700">
+                    Mulai bulan <strong>{nextPhase.startMonth}</strong>{' '}
+                    ({formatMonthLabel(nextPhase.startMonth, firstPayment)}),
+                    angsuran naik jadi{' '}
+                    <strong>{formatIDR(nextPhase.installment)}</strong>
+                    /bulan (Fase {rateTiers.indexOf(nextPhase) + 1}, bunga{' '}
+                    {formatPct(nextPhase.ratePct)}) — tabungan per bulan akan
+                    berkurang
+                  </p>
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Error State */}
@@ -869,12 +994,17 @@ function SavingsTab() {
           <div>
             <p className="text-sm font-semibold text-red-700">Simulasi Tidak Memungkinkan</p>
             <p className="text-sm text-red-600 mt-1">{result.error}</p>
-            {'monthlySavings' in result && result.monthlySavings !== undefined && (
+            {'currentSavingsRate' in result && result.currentSavingsRate !== undefined && (
               <p className="text-xs text-red-500 mt-2">
-                Sisa setelah KPR: {formatIDR(result.monthlySavings)} / bulan —{' '}
-                {result.monthlySavings <= 0
+                Sisa setelah KPR: {formatIDR(result.currentSavingsRate)} / bulan —{' '}
+                {result.currentSavingsRate <= 0
                   ? 'defisit, kurangi pengeluaran atau tambah pemasukan'
                   : 'terlalu kecil untuk mencapai target'}
+              </p>
+            )}
+            {'phaseTransitionMonth' in result && result.phaseTransitionMonth && (
+              <p className="text-xs text-amber-600 mt-1">
+                ⚠️ Angsuran naik di bulan ke-{result.phaseTransitionMonth} (perubahan fase bunga)
               </p>
             )}
           </div>
@@ -886,8 +1016,8 @@ function SavingsTab() {
         <>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <SimCard
-              title="Tabungan per Bulan"
-              value={formatIDR(result.monthlySavings)}
+              title="Tabungan per Bulan (Sekarang)"
+              value={formatIDR(result.currentSavingsRate)}
               subtitle={`Sisa dari ${formatIDR(monthlyIncome * 1_000_000)} - ${formatIDR(monthlyExpenses * 1_000_000)} - KPR`}
               icon={Wallet}
               color="blue"
@@ -909,7 +1039,7 @@ function SavingsTab() {
             <SimCard
               title="Total Terkumpul"
               value={formatIDR(result.totalSaved)}
-              subtitle={`Tabungan ${formatIDR(currentSavings * 1_000_000)} + ${result.monthsToGoal} × ${formatIDR(result.monthlySavings)}`}
+              subtitle={`Modal ${formatIDR(currentSavings * 1_000_000)} + akumulasi ${result.monthsToGoal} bulan`}
               icon={PiggyBank}
               color="amber"
             />
@@ -924,8 +1054,23 @@ function SavingsTab() {
               <div>
                 <p className="text-sm font-semibold text-gray-800">Insight</p>
                 <p className="text-sm text-gray-700 mt-1">
-                  Dengan tabungan <strong>{formatIDR(result.monthlySavings)}</strong>/bulan, Anda bisa
-                  lunasi KPR dalam <strong>{result.monthsToGoal} bulan</strong> (sekitar{' '}
+                  Dengan tabungan awal <strong>{formatIDR(result.currentSavingsRate)}</strong>/bulan
+                  {result.phaseTransitionMonth && (
+                    <>
+                      {' '}(berkurang jadi{' '}
+                      <strong>
+                        {formatIDR(
+                          monthlyIncome * 1_000_000 -
+                            monthlyExpenses * 1_000_000 -
+                            (result.savingsHistory.find(
+                              (h) => h.month === result.phaseTransitionMonth,
+                            )?.kprInstallment ?? 0),
+                        )}
+                      </strong>
+                      /bulan setelah perubahan fase)
+                    </>
+                  )}
+                  , Anda bisa lunasi KPR dalam <strong>{result.monthsToGoal} bulan</strong> (sekitar{' '}
                   <strong>{(result.monthsToGoal / 12).toFixed(1)} tahun</strong>) pada{' '}
                   <strong>{payoffDateFormatted}</strong>.
                 </p>
@@ -936,6 +1081,95 @@ function SavingsTab() {
               </div>
             </div>
           </div>
+
+          {/* KPR Cost During Savings Period */}
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h3 className="text-sm font-semibold text-gray-700 mb-4">
+              Biaya KPR Selama Periode Menabung ({result.monthsToGoal} bulan)
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="p-4 bg-gray-50 rounded-lg">
+                <p className="text-xs text-gray-500">Total Angsuran KPR</p>
+                <p className="text-lg font-bold text-gray-900 mt-1">
+                  {formatIDR(result.totalKPRPaid)}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {result.monthsToGoal} bulan × bervariasi per fase
+                </p>
+              </div>
+              <div className="p-4 bg-red-50 rounded-lg">
+                <p className="text-xs text-gray-500">Total Bunga Dibayar</p>
+                <p className="text-lg font-bold text-red-600 mt-1">
+                  {formatIDR(result.totalInterestPaid)}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {((result.totalInterestPaid / result.totalKPRPaid) * 100).toFixed(0)}% dari total angsuran
+                </p>
+              </div>
+              <div className="p-4 bg-emerald-50 rounded-lg">
+                <p className="text-xs text-gray-500">Total Pokok Dibayar</p>
+                <p className="text-lg font-bold text-emerald-600 mt-1">
+                  {formatIDR(result.totalKPRPaid - result.totalInterestPaid)}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {(((result.totalKPRPaid - result.totalInterestPaid) / result.totalKPRPaid) * 100).toFixed(0)}% dari total angsuran
+                </p>
+              </div>
+            </div>
+            {result.phaseTransitionMonth && (
+              <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <p className="text-xs text-amber-700">
+                  ⚠️ Terjadi perubahan fase bunga di bulan ke-{result.phaseTransitionMonth}. Angsuran KPR naik, sehingga tabungan per bulan berkurang. 
+                  Total bunga yang dibayar selama periode menabung: <strong>{formatIDR(result.totalInterestPaid)}</strong>.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Installment Phase Chart — shows KPR bill changes */}
+          {result.savingsHistory.length > 0 && (
+            <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <h3 className="text-sm font-semibold text-gray-700 mb-4">
+                Angsuran KPR per Bulan Selama Periode Menabung
+              </h3>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={result.savingsHistory}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis
+                    dataKey="month"
+                    tick={{ fontSize: 11 }}
+                    label={{
+                      value: 'Bulan ke-',
+                      position: 'insideBottom',
+                      offset: -5,
+                      fontSize: 11,
+                    }}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11 }}
+                    tickFormatter={(v) =>
+                      `${(v / 1_000_000).toFixed(1)}jt`
+                    }
+                  />
+                  <Tooltip
+                    formatter={(value: number) => [
+                      formatIDR(value),
+                      'Angsuran KPR',
+                    ]}
+                    labelFormatter={(label) => `Bulan ke-${label}`}
+                  />
+                  <Bar
+                    dataKey="kprInstallment"
+                    fill="#3b82f6"
+                    radius={[4, 4, 0, 0]}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+              <p className="text-xs text-gray-400 mt-2">
+                Angsuran berubah saat fase bunga berubah. Tabungan per bulan = Pemasukan - Pengeluaran - Angsuran KPR.
+              </p>
+            </div>
+          )}
 
           {/* Breakdown Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -1096,6 +1330,27 @@ function SavingsTab() {
 function SimulatorPage() {
   const [activeTab, setActiveTab] = useState<'early' | 'extra' | 'savings'>('early');
 
+  const { data: cmsStatus, isLoading: statusLoading, error: statusError } = useKprStatus();
+  const { data: loanData, isLoading: loanLoading } = useKprLoan();
+  const { data: tiersData, isLoading: tiersLoading } = useRateTiers();
+  const { data: scheduleData, isLoading: scheduleLoading } = useSchedule();
+
+  const isLoading = statusLoading || loanLoading || tiersLoading || scheduleLoading;
+
+  if (isLoading) return <LoadingState />;
+  if (statusError) return <ErrorState message={String(statusError)} />;
+  if (!cmsStatus || !loanData || !scheduleData) return <ErrorState message="Data KPR tidak ditemukan" />;
+
+  const status = adaptCmsStatus(cmsStatus);
+  const loan = loanData as KprLoan;
+  const tiers = tiersData?.docs ?? [];
+  const phases = adaptRateTiersToPhases(tiers, loan.firstPayment);
+  const schedule = scheduleData.docs;
+  const scheduleMap = scheduleToMap(schedule);
+  const currentMonth = computeCurrentMonth(schedule);
+  const totalCost20yr = computeTotalCost(schedule);
+  const tenorMonths = loan.tenorMonths;
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -1126,9 +1381,34 @@ function SimulatorPage() {
       </div>
 
       {/* Tab Content */}
-      {activeTab === 'early' && <EarlyPayoffTab />}
-      {activeTab === 'extra' && <ExtraPaymentTab />}
-      {activeTab === 'savings' && <SavingsTab />}
+      {activeTab === 'early' && (
+        <EarlyPayoffTab
+          loan={loan}
+          phases={phases}
+          scheduleMap={scheduleMap}
+          currentMonth={currentMonth}
+          totalCost20yr={totalCost20yr}
+          tenorMonths={tenorMonths}
+        />
+      )}
+      {activeTab === 'extra' && (
+        <ExtraPaymentTab
+          loan={loan}
+          phases={phases}
+          schedule={schedule}
+          totalCost20yr={totalCost20yr}
+          tenorMonths={tenorMonths}
+        />
+      )}
+      {activeTab === 'savings' && (
+        <SavingsTab
+          status={status}
+          schedule={schedule}
+          loan={loan}
+          rateTiers={tiers}
+          firstPayment={loan.firstPayment}
+        />
+      )}
     </div>
   );
 }

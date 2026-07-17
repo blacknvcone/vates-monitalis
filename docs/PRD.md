@@ -2,8 +2,8 @@
 
 ## Product Requirements Document (PRD)
 
-**Version:** 5.0 (MVP Complete)
-**Date:** 12 Juli 2026
+**Version:** 6.0 (CMS-Connected + Full Features)
+**Date:** 17 Juli 2026
 **Status:** ✅ Implemented
 
 ---
@@ -47,27 +47,37 @@ Web application personal finance dashboard untuk monitoring dan optimasi KPR BRI
 | `POST /api/kpr/send-payment-reminder-test` | `kpr-email.ts` | Send to specific email |
 | `POST /api/kpr/send-monthly-insight-test` | `kpr-email.ts` | Send to specific email |
 
-### ✅ Frontend (vates-monitalis)
+### ✅ Frontend (vates-monitalis) — v2.0
 
 | Page | Route | Features |
 |------|-------|----------|
 | Dashboard | `/` | Summary cards, phase timeline, balance chart, pie chart, next payment, milestone alerts |
 | Tabel Angsuran | `/schedule` | TanStack Table 240 rows, sort, filter, pagination, status toggle, area chart |
-| Simulator | `/simulator` | 3 tabs: early payoff, extra payment, savings simulation |
-| Insights | `/insights` | Computed: key metrics, recommendation, milestones, opportunity cost table |
-| Settings | `/settings` | Reminder config (day, types), users list with test email, loan info, export |
+| Simulator | `/simulator` | 3 tabs: early payoff, extra payment, savings simulation (phase-aware) |
+| Insights | `/insights` | Key metrics, milestones, opportunity cost, recommendations (loan-data-driven) |
+| Pembayaran Ekstra | `/extra-payments` | Track extra payments, add form, interest saved estimate |
+| Riwayat Pembayaran | `/payment-history` | Visual timeline of paid months, principal/interest split |
+| Target Pelunasan | `/goals` | Set target payoff date, progress tracking, feasibility check |
+| Arus Kas | `/cashflow` | 12-month forward calendar, monthly outflow visualization |
+| Perbandingan Skenario | `/scenario-compare` | Compare 3 scenarios: baseline, extra payment, early payoff |
+| Kalkulator Refinancing | `/refinance` | Compare BRI vs BTN/BCA/Mandiri/BNI, savings analysis |
+| Penyesuaian Inflasi | `/inflation` | Nominal vs real value charts, adjustable inflation rate |
+| Export Laporan | `/export` | CSV download, printable report, data preview |
+| Notifikasi | `/notifications` | Reminder history, active status, next scheduled send |
+| Settings | `/settings` | Reminder config (day, types), users list, test email, loan info |
 | Login | `/login` | Auth form with email/password |
 
 ### ✅ Supporting Code
 
-| File | Lines | Description |
-|------|-------|-------------|
-| `lib/api.ts` | 260+ | Payload CMS REST client (full CRUD + custom endpoints) |
-| `lib/auth.tsx` | 70 | AuthContext provider + useAuth hook |
-| `lib/mock-data.ts` | 350+ | Mock data generator with savings simulation |
-| `lib/format.ts` | 90 | IDR currency, date, percentage formatters |
-| `hooks/index.ts` | 180 | TanStack Query hooks (auto loanId) |
-| `types/index.ts` | 170 | TypeScript interfaces |
+| File | Description |
+|------|-------------|
+| `lib/api.ts` | Payload CMS REST client (full CRUD + custom endpoints + CmsStatusResponse type) |
+| `lib/auth.tsx` | AuthContext provider + useAuth hook |
+| `lib/cms-adapters.ts` | CMS response → UI type adapters (adaptCmsStatus, adaptRateTiersToPhases) |
+| `lib/format.ts` | IDR currency, date, percentage formatters |
+| `hooks/index.ts` | TanStack Query hooks (useKprStatus, useKprLoan, useRateTiers, useSchedule, etc.) |
+| `types/index.ts` | TypeScript interfaces |
+| `eslint.config.js` | ESLint 9 flat config |
 
 ---
 
@@ -78,6 +88,9 @@ Web application personal finance dashboard untuk monitoring dan optimasi KPR BRI
 3. **Auth** — MonetalisUsers collection with JWT, separate from shared Users
 4. **Email** — Nodemailer via Google SMTP, sends to all users on a loan
 5. **Data Isolation** — Users only see data for their assigned loanId
+6. **CMS-Connected** — All routes use CMS hooks via TanStack Query, no mock data
+7. **Adapters** — CMS response shapes mapped to UI types via cms-adapters.ts
+8. **Phase-Aware** — All calculations use actual per-phase installment amounts
 
 ---
 

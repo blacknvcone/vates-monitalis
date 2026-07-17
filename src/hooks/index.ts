@@ -36,6 +36,32 @@ export function useKprStatus() {
 }
 
 // ============================================================
+// KPR Loan Details
+// ============================================================
+
+export function useKprLoan() {
+  const loanId = useLoanId();
+  return useQuery({
+    queryKey: queryKeys.kprLoan(loanId),
+    queryFn: () => api.fetchKprLoan(loanId),
+    enabled: !!loanId,
+  });
+}
+
+// ============================================================
+// Rate Tiers
+// ============================================================
+
+export function useRateTiers() {
+  const loanId = useLoanId();
+  return useQuery({
+    queryKey: queryKeys.rateTiers(loanId),
+    queryFn: () => api.fetchRateTiers(loanId),
+    enabled: !!loanId,
+  });
+}
+
+// ============================================================
 // Schedule
 // ============================================================
 
@@ -192,19 +218,17 @@ export function useInsights() {
 // ============================================================
 
 export function useSendPaymentReminder() {
+  const loanId = useLoanId();
   return useMutation({
-    mutationFn: ({ reminderId }: { reminderId: string }) => {
-      const loanId = useLoanId();
-      return api.sendReminder(reminderId, loanId);
-    },
+    mutationFn: ({ reminderId }: { reminderId: string }) =>
+      api.sendReminder(reminderId, loanId),
   });
 }
 
 export function useSendMonthlyInsight() {
+  const loanId = useLoanId();
   return useMutation({
-    mutationFn: ({ reminderId }: { reminderId: string }) => {
-      const loanId = useLoanId();
-      return api.sendMonthlyInsight(reminderId, loanId);
-    },
+    mutationFn: ({ reminderId }: { reminderId: string }) =>
+      api.sendMonthlyInsight(reminderId, loanId),
   });
 }

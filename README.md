@@ -2,18 +2,30 @@
 
 Personal finance dashboard untuk monitoring dan optimasi Kredit Pemilikan Rumah (KPR) dengan struktur bunga berjenjang (stepped fixed rate).
 
-**Status:** MVP Complete ✅
+**Status:** v2.0 — All features live, CMS-connected ✅
 
 ---
 
 ## Features
 
+### Core
 - **Dashboard** — Ringkasan keuangan KPR: sisa pokok, total bunga, progress, fase bunga aktif, milestone alerts
 - **Tabel Angsuran** — 240 bulan angsuran dengan TanStack Table (sort, filter, pagination, status tracking)
-- **Simulator** — 3 tab: Pelunasan Dipercepat, Pembayaran Ekstra, Simulasi Menabung
-- **Financial Insights** — Analisa opportunity cost, milestone alerts, rekomendasi strategi (semua computed dari data aktual)
+- **Simulator** — 3 tab: Pelunasan Dipercepat, Pembayaran Ekstra, Simulasi Menabung (phase-aware calculations)
+- **Financial Insights** — Analisa opportunity cost, milestone alerts, rekomendasi strategi (semua computed dari data aktual loan)
 - **Email Reminder** — 2 jenis email: Pengingat Pembayaran + Laporan Bulanan (multi-user per loan)
 - **Settings** — Konfigurasi reminder, users dengan akses, test email per-user
+
+### New (v2.0)
+- **Pembayaran Ekstra** — Track actual extra payments, add new ones, see interest saved
+- **Riwayat Pembayaran** — Visual timeline of all paid months with principal/interest split
+- **Target Pelunasan** — Set payoff target date, track progress, monthly savings needed
+- **Arus Kas** — Monthly calendar view of payment obligations (12-month forward)
+- **Perbandingan Skenario** — Compare 3 scenarios: baseline, extra payment, early payoff
+- **Kalkulator Refinancing** — Compare BRI vs BTN/BCA/Mandiri/BNI rates
+- **Penyesuaian Inflasi** — Real value of payments accounting for inflation
+- **Export Laporan** — CSV download + printable summary report
+- **Notifikasi** — View configured reminders and notification history
 
 ---
 
@@ -68,12 +80,21 @@ src/
 │   ├── schedule.tsx         # Tabel Angsuran (TanStack Table, 240 rows)
 │   ├── simulator.tsx        # 3-tab simulator (payoff, extra, savings)
 │   ├── insights.tsx         # Financial insights (computed from data)
+│   ├── extra-payments.tsx   # Extra payment tracker + add form
+│   ├── payment-history.tsx  # Payment timeline (visual)
+│   ├── goals.tsx            # Target payoff date tracker
+│   ├── cashflow.tsx         # Monthly cash flow calendar
+│   ├── scenario-compare.tsx # 3-scenario comparison
+│   ├── refinance.tsx        # Refinance calculator (Indonesian banks)
+│   ├── inflation.tsx        # Inflation-adjusted values
+│   ├── export.tsx           # CSV export + print report
+│   ├── notifications.tsx    # Notification/reminder history
 │   ├── settings.tsx         # Reminder config, users, test email
 │   └── login.tsx            # Login page
 ├── lib/
 │   ├── api.ts               # Payload CMS REST API client
 │   ├── auth.tsx             # AuthContext provider + useAuth hook
-│   ├── mock-data.ts         # Mock data generator (until CMS connected)
+│   ├── cms-adapters.ts      # CMS response → UI type adapters
 │   ├── format.ts            # IDR currency, date, percentage formatters
 │   └── utils.ts             # cn() utility
 ├── hooks/
@@ -116,15 +137,27 @@ src/
 
 ```bash
 pnpm install
-pnpm dev          # Port 3000, proxies /api to localhost:3001
-pnpm build        # Production build
+cp .env.example .env.local    # Set VITE_CMS_URL=http://localhost:3001 for local dev
+pnpm dev                      # Port 3000, proxies /api to localhost:3001
+pnpm build                    # Production build
 ```
 
 ### Environment Variables
 
 ```env
-VITE_CMS_URL=https://cms.danipras.dev   # Production
-VITE_CMS_URL=http://localhost:3001       # Local development
+# .env.local (local development)
+VITE_CMS_URL=http://localhost:3001
+
+# .env (production)
+VITE_CMS_URL=https://cms.danipras.dev
+```
+
+### Local CMS Setup
+
+```bash
+cd /path/to/revamp-portfolio
+pnpm install
+pnpm dev:cms    # Port 3001, connects to MongoDB Atlas
 ```
 
 ---
@@ -136,7 +169,7 @@ VITE_CMS_URL=http://localhost:3001       # Local development
 Push tag `v*` → GitHub Actions → Build Docker → Push GHCR → Webhook restart
 
 ```bash
-git tag -a v1.6.1 -m "release" && git push origin v1.6.1
+git tag -a v2.0.0 -m "v2.0: CMS-connected, 9 new features" && git push origin v2.0.0
 ```
 
 ### K8s Manifests

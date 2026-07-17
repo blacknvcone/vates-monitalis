@@ -31,98 +31,43 @@ import {
   Search,
   CheckSquare,
   CalendarDays,
+  Loader2,
 } from 'lucide-react';
 import { formatIDR, formatPct, formatMonthLabel, formatIDRCompact } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { useSchedule, useKprLoan, useBulkMarkPaid } from '@/hooks';
 import type { KprScheduleEntry } from '@/types';
 
 // ============================================================
-// Mock data generator — full 240-month amortization schedule
+// Phase derivation from schedule data
 // ============================================================
 
-interface Phase {
+interface DerivedPhase {
   startMonth: number;
   endMonth: number;
   annualRate: number;
   installment: number;
 }
 
-const LOAN_AMOUNT = 415_000_000;
-const FIRST_PAYMENT = '2023-11-01';
-const CURRENT_MONTH = 33;
+function derivePhases(entries: KprScheduleEntry[]): DerivedPhase[] {
+  const phases: DerivedPhase[] = [];
+  let current: DerivedPhase | null = null;
 
-const PHASES: Phase[] = [
-  { startMonth: 1, endMonth: 36, annualRate: 4.75, installment: 2_681_900 },
-  { startMonth: 37, endMonth: 72, annualRate: 8.00, installment: 3_367_400 },
-  { startMonth: 73, endMonth: 240, annualRate: 10.25, installment: 3_815_600 },
-];
-
-function getPhaseForMonth(month: number): Phase {
-  return PHASES.find((p) => month >= p.startMonth && month <= p.endMonth) ?? PHASES[PHASES.length - 1];
-}
-
-function generateSchedule(): KprScheduleEntry[] {
-  const entries: KprScheduleEntry[] = [];
-  let balance = LOAN_AMOUNT;
-  const firstDate = new Date(FIRST_PAYMENT);
-
-  for (let month = 1; month <= 240; month++) {
-    const phase = getPhaseForMonth(month);
-    const monthlyRate = phase.annualRate / 100 / 12;
-    const installment = phase.installment;
-
-    const interestPortion = Math.round(balance * monthlyRate);
-    let principalPortion = installment - interestPortion;
-
-    // Last month: pay off remaining balance
-    if (month === 240) {
-      principalPortion = balance;
+  for (const entry of entries) {
+    if (!current || current.annualRate !== entry.interestRate) {
+      if (current) phases.push(current);
+      current = {
+        startMonth: entry.monthNumber,
+        endMonth: entry.monthNumber,
+        annualRate: entry.interestRate,
+        installment: entry.totalInstallment,
+      };
+    } else {
+      current.endMonth = entry.monthNumber;
     }
-
-    balance = Math.max(0, balance - principalPortion);
-
-    // Calendar date for this month
-    const calDate = new Date(firstDate);
-    calDate.setMonth(calDate.getMonth() + (month - 1));
-    const calendarDate = calDate.toISOString().split('T')[0];
-
-    entries.push({
-      id: `schedule-${month}`,
-      loan: 'mock-loan-1',
-      monthNumber: month,
-      calendarDate,
-      principalPortion,
-      interestPortion,
-      totalInstallment: month === 240 ? principalPortion + interestPortion : installment,
-      outstandingBalance: balance,
-      interestRate: phase.annualRate,
-      isPaid: month <= CURRENT_MONTH,
-      paidDate: month <= CURRENT_MONTH ? calendarDate : undefined,
-      paidAmount: month <= CURRENT_MONTH ? installment : undefined,
-      createdAt: '2023-10-23',
-      updatedAt: '2023-10-23',
-    });
   }
-
-  return entries;
-}
-
-// ============================================================
-// Helpers
-// ============================================================
-
-function getPhaseBoundaryMonths(): Set<number> {
-  const boundaries = new Set<number>();
-  for (const phase of PHASES) {
-    boundaries.add(phase.startMonth);
-  }
-  return boundaries;
-}
-
-const PHASE_BOUNDARIES = getPhaseBoundaryMonths();
-
-function isPhaseBoundary(month: number): boolean {
-  return PHASE_BOUNDARIES.has(month);
+  if (current) phases.push(current);
+  return phases;
 }
 
 // ============================================================
@@ -136,142 +81,156 @@ function SortIcon({ sorted }: { sorted: false | 'asc' | 'desc' }) {
 }
 
 // ============================================================
-// Column definitions
+// Column definitions (factory — needs firstPayment & phases)
 // ============================================================
 
-const columns: ColumnDef<KprScheduleEntry>[] = [
-  {
-    accessorKey: 'monthNumber',
-    header: 'Bulan',
-    cell: (info) => {
-      const month = info.getValue() as number;
-      return (
-        <span className="font-medium text-gray-900 tabular-nums">
-          {month}
-        </span>
-      );
+function createColumns(
+  firstPayment: string,
+  phases: DerivedPhase[],
+): ColumnDef<KprScheduleEntry>[] {
+  return [
+    {
+      accessorKey: 'monthNumber',
+      header: 'Bulan',
+      cell: (info) => {
+        const month = info.getValue() as number;
+        return (
+          <span className="font-medium text-gray-900 tabular-nums">
+            {month}
+          </span>
+        );
+      },
+      size: 60,
     },
-    size: 60,
-  },
-  {
-    accessorKey: 'calendarDate',
-    header: 'Tanggal',
-    cell: (info) => {
-      const month = info.row.original.monthNumber;
-      return (
-        <span className="text-gray-600 text-sm">
-          {formatMonthLabel(month, FIRST_PAYMENT)}
-        </span>
-      );
+    {
+      accessorKey: 'calendarDate',
+      header: 'Tanggal',
+      cell: (info) => {
+        const month = info.row.original.monthNumber;
+        return (
+          <span className="text-gray-600 text-sm">
+            {formatMonthLabel(month, firstPayment)}
+          </span>
+        );
+      },
+      size: 100,
     },
-    size: 100,
-  },
-  {
-    accessorKey: 'principalPortion',
-    header: 'Angsuran Pokok',
-    cell: (info) => (
-      <span className="tabular-nums text-emerald-700 font-medium text-sm">
-        {formatIDR(info.getValue() as number)}
-      </span>
-    ),
-    size: 140,
-  },
-  {
-    accessorKey: 'interestPortion',
-    header: 'Angsuran Bunga',
-    cell: (info) => (
-      <span className="tabular-nums text-red-600 font-medium text-sm">
-        {formatIDR(info.getValue() as number)}
-      </span>
-    ),
-    size: 140,
-  },
-  {
-    accessorKey: 'totalInstallment',
-    header: 'Total Angsuran',
-    cell: (info) => (
-      <span className="tabular-nums text-gray-900 font-semibold text-sm">
-        {formatIDR(info.getValue() as number)}
-      </span>
-    ),
-    size: 140,
-  },
-  {
-    accessorKey: 'outstandingBalance',
-    header: 'Saldo Pinjaman',
-    cell: (info) => (
-      <span className="tabular-nums text-gray-700 text-sm">
-        {formatIDR(info.getValue() as number)}
-      </span>
-    ),
-    size: 150,
-  },
-  {
-    accessorKey: 'interestRate',
-    header: 'Suku Bunga',
-    cell: (info) => {
-      const rate = info.getValue() as number;
-      const phase = PHASES.find((p) => p.annualRate === rate);
-      const phaseNum = phase
-        ? PHASES.indexOf(phase) + 1
-        : '?';
-      return (
-        <span className="tabular-nums text-sm">
-          <span className="font-medium text-gray-900">{formatPct(rate)}</span>
-          <span className="text-gray-400 ml-1 text-xs">F{phaseNum}</span>
+    {
+      accessorKey: 'principalPortion',
+      header: 'Angsuran Pokok',
+      cell: (info) => (
+        <span className="tabular-nums text-emerald-700 font-medium text-sm">
+          {formatIDR(info.getValue() as number)}
         </span>
-      );
+      ),
+      size: 140,
     },
-    size: 100,
-  },
-  {
-    accessorKey: 'isPaid',
-    header: 'Status',
-    cell: (info) => {
-      const paid = info.getValue() as boolean;
-      return paid ? (
-        <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
-          <CheckCircle2 size={12} />
-          Lunas
+    {
+      accessorKey: 'interestPortion',
+      header: 'Angsuran Bunga',
+      cell: (info) => (
+        <span className="tabular-nums text-red-600 font-medium text-sm">
+          {formatIDR(info.getValue() as number)}
         </span>
-      ) : (
-        <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
-          <Circle size={12} />
-          Belum
-        </span>
-      );
+      ),
+      size: 140,
     },
-    size: 90,
-  },
-];
+    {
+      accessorKey: 'totalInstallment',
+      header: 'Total Angsuran',
+      cell: (info) => (
+        <span className="tabular-nums text-gray-900 font-semibold text-sm">
+          {formatIDR(info.getValue() as number)}
+        </span>
+      ),
+      size: 140,
+    },
+    {
+      accessorKey: 'outstandingBalance',
+      header: 'Saldo Pinjaman',
+      cell: (info) => (
+        <span className="tabular-nums text-gray-700 text-sm">
+          {formatIDR(info.getValue() as number)}
+        </span>
+      ),
+      size: 150,
+    },
+    {
+      accessorKey: 'interestRate',
+      header: 'Suku Bunga',
+      cell: (info) => {
+        const rate = info.getValue() as number;
+        const phase = phases.find((p) => p.annualRate === rate);
+        const phaseNum = phase ? phases.indexOf(phase) + 1 : '?';
+        return (
+          <span className="tabular-nums text-sm">
+            <span className="font-medium text-gray-900">{formatPct(rate)}</span>
+            <span className="text-gray-400 ml-1 text-xs">F{phaseNum}</span>
+          </span>
+        );
+      },
+      size: 100,
+    },
+    {
+      accessorKey: 'isPaid',
+      header: 'Status',
+      cell: (info) => {
+        const paid = info.getValue() as boolean;
+        return paid ? (
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+            <CheckCircle2 size={12} />
+            Lunas
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
+            <Circle size={12} />
+            Belum
+          </span>
+        );
+      },
+      size: 90,
+    },
+  ];
+}
 
 // ============================================================
 // Stacked Area Chart Component
 // ============================================================
 
-function PrincipalVsInterestChart({ data }: { data: KprScheduleEntry[] }) {
-  // Sample every 6 months for chart readability, plus include month 1 and phase boundaries
+function PrincipalVsInterestChart({
+  data,
+  firstPayment,
+  currentMonth,
+  phaseBoundaries,
+}: {
+  data: KprScheduleEntry[];
+  firstPayment: string;
+  currentMonth: number;
+  phaseBoundaries: Set<number>;
+}) {
+  // Sample every 12 months for chart readability, plus include month 1, last month, phase boundaries, and current month
   const chartData = useMemo(() => {
+    const lastMonth = data.length > 0 ? data[data.length - 1].monthNumber : 0;
     const sampled: { month: number; label: string; principal: number; interest: number }[] = [];
     for (let i = 0; i < data.length; i++) {
       const entry = data[i];
       if (
         entry.monthNumber === 1 ||
         entry.monthNumber % 12 === 0 ||
-        entry.monthNumber === 240 ||
-        isPhaseBoundary(entry.monthNumber) ||
-        entry.monthNumber === CURRENT_MONTH
+        entry.monthNumber === lastMonth ||
+        phaseBoundaries.has(entry.monthNumber) ||
+        entry.monthNumber === currentMonth
       ) {
         sampled.push({
           month: entry.monthNumber,
-          label: formatMonthLabel(entry.monthNumber, FIRST_PAYMENT),
+          label: formatMonthLabel(entry.monthNumber, firstPayment),
           principal: entry.principalPortion,
           interest: entry.interestPortion,
         });
       }
     }
     return sampled;
-  }, [data]);
+  }, [data, firstPayment, currentMonth, phaseBoundaries]);
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-6">
@@ -279,7 +238,7 @@ function PrincipalVsInterestChart({ data }: { data: KprScheduleEntry[] }) {
         Komposisi Angsuran: Pokok vs Bunga
       </h3>
       <p className="text-xs text-gray-400 mb-4">
-        Stacked area chart menunjukkan porsi pokok dan bunga per bulan selama 20 tahun
+        Stacked area chart menunjukkan porsi pokok dan bunga per bulan selama masa pinjaman
       </p>
       <ResponsiveContainer width="100%" height={320}>
         <AreaChart data={chartData}>
@@ -402,7 +361,31 @@ function SchedulePage() {
   const [globalFilter, setGlobalFilter] = useState('');
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({});
 
-  const scheduleData = useMemo(() => generateSchedule(), []);
+  const { data: scheduleResponse, isLoading, error } = useSchedule();
+  const { data: loan } = useKprLoan();
+  const bulkMarkPaid = useBulkMarkPaid();
+
+  const scheduleData = scheduleResponse?.docs ?? [];
+  const firstPayment = loan?.firstPayment ?? '';
+
+  // Derive phases and current month from schedule data
+  const phases = useMemo(() => derivePhases(scheduleData), [scheduleData]);
+  const phaseBoundaries = useMemo(
+    () => new Set(phases.map((p) => p.startMonth)),
+    [phases],
+  );
+  const currentMonth = useMemo(() => {
+    const lastPaid = [...scheduleData]
+      .reverse()
+      .find((e) => e.isPaid);
+    return lastPaid?.monthNumber ?? 0;
+  }, [scheduleData]);
+
+  // Columns depend on firstPayment and phases (both derived from CMS data)
+  const columns = useMemo(
+    () => createColumns(firstPayment, phases),
+    [firstPayment, phases],
+  );
 
   const table = useReactTable({
     data: scheduleData,
@@ -425,7 +408,6 @@ function SchedulePage() {
       },
     },
     globalFilterFn: (row, _columnId, filterValue) => {
-      // Filter by month number
       const month = row.original.monthNumber;
       const search = filterValue.toString();
       return month.toString().includes(search);
@@ -433,7 +415,32 @@ function SchedulePage() {
   });
 
   const paidCount = scheduleData.filter((e) => e.isPaid).length;
-  const unpaidCount = 240 - paidCount;
+  const totalMonths = scheduleData.length || 240;
+  const unpaidCount = totalMonths - paidCount;
+
+  // ---- Loading state ----
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="animate-spin text-blue-600" size={32} />
+          <p className="text-sm text-gray-500">Memuat jadwal angsuran...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ---- Error state ----
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 max-w-md text-center">
+          <p className="text-sm font-medium text-red-700">Gagal memuat jadwal angsuran</p>
+          <p className="text-xs text-red-500 mt-1">{error.message}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -441,7 +448,7 @@ function SchedulePage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Tabel Angsuran</h1>
         <p className="text-sm text-gray-500 mt-1">
-          Jadwal lengkap 240 bulan angsuran KPR BRI &middot; Fachrul Dani Prasetya
+          Jadwal lengkap {totalMonths} bulan angsuran KPR BRI &middot; Fachrul Dani Prasetya
         </p>
       </div>
 
@@ -449,7 +456,7 @@ function SchedulePage() {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl border border-gray-200 px-4 py-3">
           <p className="text-xs text-gray-500">Total Bulan</p>
-          <p className="text-xl font-bold text-gray-900">240</p>
+          <p className="text-xl font-bold text-gray-900">{totalMonths}</p>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 px-4 py-3">
           <p className="text-xs text-gray-500">Sudah Dibayar</p>
@@ -461,7 +468,7 @@ function SchedulePage() {
         </div>
         <div className="bg-white rounded-xl border border-gray-200 px-4 py-3">
           <p className="text-xs text-gray-500">Bulan Aktif</p>
-          <p className="text-xl font-bold text-blue-600">{CURRENT_MONTH}</p>
+          <p className="text-xl font-bold text-blue-600">{currentMonth}</p>
         </div>
       </div>
 
@@ -481,13 +488,21 @@ function SchedulePage() {
 
         {/* Bulk Mark Paid */}
         <button
-          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-          onClick={() => {
-            alert(`Bulk mark paid up to month ${CURRENT_MONTH} — akan terhubung ke CMS nanti.`);
-          }}
+          className={cn(
+            'inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors shadow-sm',
+            bulkMarkPaid.isPending
+              ? 'bg-blue-400 cursor-not-allowed'
+              : 'bg-blue-600 hover:bg-blue-700',
+          )}
+          disabled={bulkMarkPaid.isPending || currentMonth === 0}
+          onClick={() => bulkMarkPaid.mutate({ upToMonth: currentMonth })}
         >
-          <CheckSquare size={15} />
-          Tandai Lunas s/d Bulan {CURRENT_MONTH}
+          {bulkMarkPaid.isPending ? (
+            <Loader2 size={15} className="animate-spin" />
+          ) : (
+            <CheckSquare size={15} />
+          )}
+          Tandai Lunas s/d Bulan {currentMonth}
         </button>
 
         {/* Column Visibility */}
@@ -501,7 +516,7 @@ function SchedulePage() {
 
       {/* Phase Legend */}
       <div className="flex flex-wrap gap-4 text-xs">
-        {PHASES.map((phase, i) => (
+        {phases.map((phase, i) => (
           <div key={i} className="flex items-center gap-1.5">
             <div
               className={cn(
@@ -556,9 +571,9 @@ function SchedulePage() {
             <tbody>
               {table.getRowModel().rows.map((row) => {
                 const month = row.original.monthNumber;
-                const isCurrent = month === CURRENT_MONTH;
-                const isBoundary = isPhaseBoundary(month);
-                const isFuture = month > CURRENT_MONTH;
+                const isCurrent = month === currentMonth;
+                const isBoundary = phaseBoundaries.has(month);
+                const isFuture = month > currentMonth;
 
                 return (
                   <tr
@@ -658,7 +673,7 @@ function SchedulePage() {
           <div className="flex items-center gap-1.5">
             <button
               onClick={() => {
-                const idx = scheduleData.findIndex((e) => e.monthNumber === CURRENT_MONTH);
+                const idx = scheduleData.findIndex((e) => e.monthNumber === currentMonth);
                 if (idx >= 0) {
                   const pageSize = table.getState().pagination.pageSize;
                   table.setPageIndex(Math.floor(idx / pageSize));
@@ -674,7 +689,12 @@ function SchedulePage() {
       </div>
 
       {/* Stacked Area Chart */}
-      <PrincipalVsInterestChart data={scheduleData} />
+      <PrincipalVsInterestChart
+        data={scheduleData}
+        firstPayment={firstPayment}
+        currentMonth={currentMonth}
+        phaseBoundaries={phaseBoundaries}
+      />
     </div>
   );
 }

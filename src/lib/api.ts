@@ -81,7 +81,9 @@ export function getLoanId(): string {
       const user = JSON.parse(stored);
       return user.loanId || '';
     }
-  } catch {}
+  } catch {
+    // intentionally ignored — fallback to empty string
+  }
   return '';
 }
 
@@ -248,8 +250,35 @@ export async function deleteSimulation(id: string) {
 // Custom Endpoints
 // ============================================================
 
+// Raw CMS status response (before adaptation)
+export interface CmsStatusResponse {
+  loanId: string;
+  borrowerName: string;
+  bankName: string;
+  loanAmount: number;
+  tenorMonths: number;
+  currentMonth: number;
+  outstandingBalance: number;
+  totalPaid: number;
+  totalPrincipalPaid: number;
+  totalInterestPaid: number;
+  currentPhase: string;
+  currentRate: number;
+  currentInstallment: number;
+  nextPayment: {
+    monthNumber: number;
+    date: string;
+    principal: number;
+    interest: number;
+    total: number;
+  } | null;
+  monthsUntilNextPhase: number | null;
+  nextPhaseRate: number | null;
+  progressPct: number;
+}
+
 export async function fetchKprStatus(loanId: string) {
-  return cmsFetch<KprStatus>(`/api/kpr/status?loanId=${loanId}`);
+  return cmsFetch<CmsStatusResponse>(`/api/kpr/status?loanId=${loanId}`);
 }
 
 export async function simulateEarlyPayoff(loanId: string, targetMonth: number) {

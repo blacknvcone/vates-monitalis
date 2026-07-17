@@ -12,8 +12,17 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SimulatorRouteImport } from './routes/simulator'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ScheduleRouteImport } from './routes/schedule'
+import { Route as ScenarioCompareRouteImport } from './routes/scenario-compare'
+import { Route as RefinanceRouteImport } from './routes/refinance'
+import { Route as PaymentHistoryRouteImport } from './routes/payment-history'
+import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as InsightsRouteImport } from './routes/insights'
+import { Route as InflationRouteImport } from './routes/inflation'
+import { Route as GoalsRouteImport } from './routes/goals'
+import { Route as ExtraPaymentsRouteImport } from './routes/extra-payments'
+import { Route as ExportRouteImport } from './routes/export'
+import { Route as CashflowRouteImport } from './routes/cashflow'
 import { Route as IndexRouteImport } from './routes/index'
 
 const SimulatorRoute = SimulatorRouteImport.update({
@@ -31,6 +40,26 @@ const ScheduleRoute = ScheduleRouteImport.update({
   path: '/schedule',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ScenarioCompareRoute = ScenarioCompareRouteImport.update({
+  id: '/scenario-compare',
+  path: '/scenario-compare',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RefinanceRoute = RefinanceRouteImport.update({
+  id: '/refinance',
+  path: '/refinance',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PaymentHistoryRoute = PaymentHistoryRouteImport.update({
+  id: '/payment-history',
+  path: '/payment-history',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NotificationsRoute = NotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
@@ -41,6 +70,31 @@ const InsightsRoute = InsightsRouteImport.update({
   path: '/insights',
   getParentRoute: () => rootRouteImport,
 } as any)
+const InflationRoute = InflationRouteImport.update({
+  id: '/inflation',
+  path: '/inflation',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GoalsRoute = GoalsRouteImport.update({
+  id: '/goals',
+  path: '/goals',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ExtraPaymentsRoute = ExtraPaymentsRouteImport.update({
+  id: '/extra-payments',
+  path: '/extra-payments',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ExportRoute = ExportRouteImport.update({
+  id: '/export',
+  path: '/export',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CashflowRoute = CashflowRouteImport.update({
+  id: '/cashflow',
+  path: '/cashflow',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -49,16 +103,34 @@ const IndexRoute = IndexRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/cashflow': typeof CashflowRoute
+  '/export': typeof ExportRoute
+  '/extra-payments': typeof ExtraPaymentsRoute
+  '/goals': typeof GoalsRoute
+  '/inflation': typeof InflationRoute
   '/insights': typeof InsightsRoute
   '/login': typeof LoginRoute
+  '/notifications': typeof NotificationsRoute
+  '/payment-history': typeof PaymentHistoryRoute
+  '/refinance': typeof RefinanceRoute
+  '/scenario-compare': typeof ScenarioCompareRoute
   '/schedule': typeof ScheduleRoute
   '/settings': typeof SettingsRoute
   '/simulator': typeof SimulatorRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/cashflow': typeof CashflowRoute
+  '/export': typeof ExportRoute
+  '/extra-payments': typeof ExtraPaymentsRoute
+  '/goals': typeof GoalsRoute
+  '/inflation': typeof InflationRoute
   '/insights': typeof InsightsRoute
   '/login': typeof LoginRoute
+  '/notifications': typeof NotificationsRoute
+  '/payment-history': typeof PaymentHistoryRoute
+  '/refinance': typeof RefinanceRoute
+  '/scenario-compare': typeof ScenarioCompareRoute
   '/schedule': typeof ScheduleRoute
   '/settings': typeof SettingsRoute
   '/simulator': typeof SimulatorRoute
@@ -66,8 +138,17 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/cashflow': typeof CashflowRoute
+  '/export': typeof ExportRoute
+  '/extra-payments': typeof ExtraPaymentsRoute
+  '/goals': typeof GoalsRoute
+  '/inflation': typeof InflationRoute
   '/insights': typeof InsightsRoute
   '/login': typeof LoginRoute
+  '/notifications': typeof NotificationsRoute
+  '/payment-history': typeof PaymentHistoryRoute
+  '/refinance': typeof RefinanceRoute
+  '/scenario-compare': typeof ScenarioCompareRoute
   '/schedule': typeof ScheduleRoute
   '/settings': typeof SettingsRoute
   '/simulator': typeof SimulatorRoute
@@ -75,14 +156,52 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/insights' | '/login' | '/schedule' | '/settings' | '/simulator'
+    | '/'
+    | '/cashflow'
+    | '/export'
+    | '/extra-payments'
+    | '/goals'
+    | '/inflation'
+    | '/insights'
+    | '/login'
+    | '/notifications'
+    | '/payment-history'
+    | '/refinance'
+    | '/scenario-compare'
+    | '/schedule'
+    | '/settings'
+    | '/simulator'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/insights' | '/login' | '/schedule' | '/settings' | '/simulator'
+  to:
+    | '/'
+    | '/cashflow'
+    | '/export'
+    | '/extra-payments'
+    | '/goals'
+    | '/inflation'
+    | '/insights'
+    | '/login'
+    | '/notifications'
+    | '/payment-history'
+    | '/refinance'
+    | '/scenario-compare'
+    | '/schedule'
+    | '/settings'
+    | '/simulator'
   id:
     | '__root__'
     | '/'
+    | '/cashflow'
+    | '/export'
+    | '/extra-payments'
+    | '/goals'
+    | '/inflation'
     | '/insights'
     | '/login'
+    | '/notifications'
+    | '/payment-history'
+    | '/refinance'
+    | '/scenario-compare'
     | '/schedule'
     | '/settings'
     | '/simulator'
@@ -90,8 +209,17 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CashflowRoute: typeof CashflowRoute
+  ExportRoute: typeof ExportRoute
+  ExtraPaymentsRoute: typeof ExtraPaymentsRoute
+  GoalsRoute: typeof GoalsRoute
+  InflationRoute: typeof InflationRoute
   InsightsRoute: typeof InsightsRoute
   LoginRoute: typeof LoginRoute
+  NotificationsRoute: typeof NotificationsRoute
+  PaymentHistoryRoute: typeof PaymentHistoryRoute
+  RefinanceRoute: typeof RefinanceRoute
+  ScenarioCompareRoute: typeof ScenarioCompareRoute
   ScheduleRoute: typeof ScheduleRoute
   SettingsRoute: typeof SettingsRoute
   SimulatorRoute: typeof SimulatorRoute
@@ -120,6 +248,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ScheduleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/scenario-compare': {
+      id: '/scenario-compare'
+      path: '/scenario-compare'
+      fullPath: '/scenario-compare'
+      preLoaderRoute: typeof ScenarioCompareRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/refinance': {
+      id: '/refinance'
+      path: '/refinance'
+      fullPath: '/refinance'
+      preLoaderRoute: typeof RefinanceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/payment-history': {
+      id: '/payment-history'
+      path: '/payment-history'
+      fullPath: '/payment-history'
+      preLoaderRoute: typeof PaymentHistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/notifications': {
+      id: '/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof NotificationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
       id: '/login'
       path: '/login'
@@ -134,6 +290,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InsightsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/inflation': {
+      id: '/inflation'
+      path: '/inflation'
+      fullPath: '/inflation'
+      preLoaderRoute: typeof InflationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/goals': {
+      id: '/goals'
+      path: '/goals'
+      fullPath: '/goals'
+      preLoaderRoute: typeof GoalsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/extra-payments': {
+      id: '/extra-payments'
+      path: '/extra-payments'
+      fullPath: '/extra-payments'
+      preLoaderRoute: typeof ExtraPaymentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/export': {
+      id: '/export'
+      path: '/export'
+      fullPath: '/export'
+      preLoaderRoute: typeof ExportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cashflow': {
+      id: '/cashflow'
+      path: '/cashflow'
+      fullPath: '/cashflow'
+      preLoaderRoute: typeof CashflowRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -146,8 +337,17 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CashflowRoute: CashflowRoute,
+  ExportRoute: ExportRoute,
+  ExtraPaymentsRoute: ExtraPaymentsRoute,
+  GoalsRoute: GoalsRoute,
+  InflationRoute: InflationRoute,
   InsightsRoute: InsightsRoute,
   LoginRoute: LoginRoute,
+  NotificationsRoute: NotificationsRoute,
+  PaymentHistoryRoute: PaymentHistoryRoute,
+  RefinanceRoute: RefinanceRoute,
+  ScenarioCompareRoute: ScenarioCompareRoute,
   ScheduleRoute: ScheduleRoute,
   SettingsRoute: SettingsRoute,
   SimulatorRoute: SimulatorRoute,

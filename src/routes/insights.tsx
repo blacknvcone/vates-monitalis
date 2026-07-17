@@ -9,14 +9,12 @@ import {
   Target,
   PiggyBank,
   Landmark,
+  Loader2,
 } from 'lucide-react';
 import { formatIDR, formatPct, formatMonthLabel } from '@/lib/format';
-import {
-  generateMockSchedule,
-  getCurrentStatus,
-  MOCK_LOAN,
-  MOCK_PHASES,
-} from '@/lib/mock-data';
+import { useKprStatus, useKprLoan, useRateTiers, useSchedule } from '@/hooks';
+import { adaptCmsStatus, adaptRateTiersToPhases } from '@/lib/cms-adapters';
+import type { KprStatus, KprLoan, KprScheduleEntry, PhaseInfo } from '@/types';
 
 // ============================================================
 // Compute insights from real data
@@ -37,21 +35,18 @@ interface OpportunityCostRow {
   description: string;
 }
 
-function computeInsights() {
-  const status = getCurrentStatus();
-  const schedule = generateMockSchedule();
-  const loan = MOCK_LOAN;
-  const phases = MOCK_PHASES;
-
-  // Total interest over full tenor
+function computeInsights(
+  status: KprStatus,
+  schedule: KprScheduleEntry[],
+  loan: KprLoan,
+  phases: PhaseInfo[],
+) {
   const totalInterestFull = schedule.reduce((sum, e) => sum + e.interestPortion, 0);
   const totalPayments = loan.loanAmount + totalInterestFull;
 
-  // Current phase
   const currentPhase = status.currentPhase;
   const currentRate = status.currentRate;
 
-  // Savings if close now (with 2.5% penalty after min tenor)
   const isAfterMinTenor = status.currentMonth >= loan.minTenorMonths;
   const penaltyRate = isAfterMinTenor ? loan.penaltyAfterMinTenor : loan.penaltyBeforeMinTenor;
   const penaltyAmount = Math.round(status.outstandingBalance * penaltyRate / 100);
@@ -62,23 +57,20 @@ function computeInsights() {
   // Generate milestones dynamically
   const milestones: Milestone[] = [];
 
-  // Penalty change milestone
   if (status.currentMonth < loan.minTenorMonths) {
     const penaltyDate = formatMonthLabel(loan.minTenorMonths, loan.firstPayment);
     milestones.push({
       type: 'penalty_change',
       date: penaltyDate,
-      title: 'Penalti Pelunasan Turun ke 2.5%',
-      description: `Setelah bulan ke-${loan.minTenorMonths}, penalti pelunasan penuh turun dari ${loan.penaltyBeforeMinTenor}% ke ${loan.penaltyAfterMinTenor}%. Ini adalah waktu optimal untuk mulai pertimbangkan pelunasan.`,
+      title: `Penalti Pelunasan Turun ke ${formatPct(loan.penaltyAfterMinTenor)}`,
+      description: `Setelah bulan ke-${loan.minTenorMonths}, penalti pelunasan penuh turun dari ${formatPct(loan.penaltyBeforeMinTenor)} ke ${formatPct(loan.penaltyAfterMinTenor)}. Ini adalah waktu optimal untuk mulai pertimbangkan pelunasan.`,
       urgency: 'warning',
     });
   }
 
-  // Rate change milestones
   for (const phase of phases) {
     if (phase.phase > currentPhase) {
       const rateDate = formatMonthLabel(phase.startMonth, loan.firstPayment);
-      const rateChange = phase.rate - currentRate;
       milestones.push({
         type: 'rate_change',
         date: rateDate,
@@ -89,19 +81,17 @@ function computeInsights() {
     }
   }
 
-  // Optimal payoff window
   if (status.currentMonth < loan.minTenorMonths) {
     const optimalDate = formatMonthLabel(loan.minTenorMonths, loan.firstPayment);
     milestones.push({
       type: 'payoff_opportunity',
       date: optimalDate,
       title: 'Window Pelunasan Optimal',
-      description: `Lunasi setelah ${optimalDate} untuk dapat penalti 2.5%. Hemat ${formatIDR(savingsVsFull)} (${((savingsVsFull / totalPayments) * 100).toFixed(0)}%) dari total 20 tahun.`,
+      description: `Lunasi setelah ${optimalDate} untuk dapat penalti ${formatPct(loan.penaltyAfterMinTenor)}. Hemat ${formatIDR(savingsVsFull)} (${((savingsVsFull / totalPayments) * 100).toFixed(0)}%) dari total 20 tahun.`,
       urgency: 'critical',
     });
   }
 
-  // Progress milestones (25%, 50%, 75%)
   const progressThresholds = [25, 50, 75];
   for (const threshold of progressThresholds) {
     const targetBalance = loan.loanAmount * (1 - threshold / 100);
@@ -118,10 +108,8 @@ function computeInsights() {
     }
   }
 
-  // Sort milestones by date
   milestones.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-  // Opportunity cost comparison
   const opportunityCost: OpportunityCostRow[] = [
     { instrument: 'Deposito (after tax)', icon: Landmark, annualReturn: 5.2, description: 'Risiko sangat rendah, likuiditas terbatas' },
     { instrument: 'Obligasi ORI', icon: PiggyBank, annualReturn: 6.5, description: 'Risiko rendah, kupon tetap' },
@@ -130,21 +118,24 @@ function computeInsights() {
     { instrument: 'Saham IHSG', icon: TrendingUp, annualReturn: 12.0, description: 'Risiko tinggi, return tidak pasti' },
   ];
 
-  // Recommendation
   let recommendation = '';
+  const highestRate = phases.length > 0 ? Math.max(...phases.map((p) => p.rate)) : currentRate;
+  const nextPhase = phases.find((p) => p.phase > currentPhase);
+
   if (status.currentMonth < loan.minTenorMonths) {
     const monthsUntil = loan.minTenorMonths - status.currentMonth;
-    recommendation = `Tunggu ${monthsUntil} bulan lagi hingga penalti turun ke 2.5%, lalu lunasi. Hemat ${formatIDR(savingsVsFull)} dari total biaya 20 tahun.`;
-  } else if (currentRate < 8) {
-    recommendation = `Anda sudah di fase penalti 2.5%. Lunasi SEKARANG untuk hindari kenaikan bunga ke 8%. Hemat ${formatIDR(savingsVsFull)}.`;
-  } else if (currentRate < 10.25) {
-    recommendation = `Bunga ${formatPct(currentRate)} masih lebih rendah dari 10.25%. Prioritaskan pelunasan sebelum fase berikutnya.`;
+    recommendation = `Tunggu ${monthsUntil} bulan lagi hingga penalti turun ke ${formatPct(loan.penaltyAfterMinTenor)}, lalu lunasi. Hemat ${formatIDR(savingsVsFull)} dari total biaya 20 tahun.`;
+  } else if (nextPhase) {
+    recommendation = `Anda sudah di fase penalti ${formatPct(loan.penaltyAfterMinTenor)}. Lunasi SEKARANG untuk hindari kenaikan bunga ke ${formatPct(nextPhase.rate)}. Hemat ${formatIDR(savingsVsFull)}.`;
+  } else if (currentRate < highestRate) {
+    recommendation = `Bunga ${formatPct(currentRate)} masih lebih rendah dari ${formatPct(highestRate)}. Prioritaskan pelunasan sebelum fase berikutnya.`;
   } else {
-    recommendation = `Bunga 10.25% lebih tinggi dari hampir semua instrumen investasi risiko rendah. SANGAT DIREKOMENDASIKAN lunasi.`;
+    recommendation = `Bunga ${formatPct(currentRate)} lebih tinggi dari hampir semua instrumen investasi risiko rendah. SANGAT DIREKOMENDASIKAN lunasi.`;
   }
 
   return {
     status,
+    loan,
     totalInterestFull,
     totalPayments,
     penaltyRate,
@@ -157,6 +148,7 @@ function computeInsights() {
     recommendation,
     currentRate,
     currentPhase,
+    highestRate,
   };
 }
 
@@ -164,26 +156,28 @@ function computeInsights() {
 // Components
 // ============================================================
 
-function KeyInsightCards({ data }: { data: ReturnType<typeof computeInsights> }) {
+type InsightData = ReturnType<typeof computeInsights>;
+
+function KeyInsightCards({ data }: { data: InsightData }) {
   const savingsPct = (data.savingsVsFull / data.totalPayments) * 100;
 
   const cards = [
     {
       label: 'Total Bunga 20 Tahun',
       value: formatIDR(data.totalInterestFull),
-      detail: `${((data.totalInterestFull / loan_amount) * 100).toFixed(0)}% dari pokok pinjaman`,
+      detail: `${((data.totalInterestFull / data.loan.loanAmount) * 100).toFixed(0)}% dari pokok pinjaman`,
       color: 'text-red-600',
     },
     {
       label: 'Total Biaya KPR',
       value: formatIDR(data.totalPayments),
-      detail: `Pokok ${formatIDR(loan_amount)} + Bunga ${formatIDR(data.totalInterestFull)}`,
+      detail: `Pokok ${formatIDR(data.loan.loanAmount)} + Bunga ${formatIDR(data.totalInterestFull)}`,
       color: 'text-gray-900',
     },
     {
       label: 'Multiplier',
-      value: `${(data.totalPayments / MOCK_LOAN.housePrice).toFixed(1)}x`,
-      detail: `Anda membayar ${(data.totalPayments / MOCK_LOAN.housePrice).toFixed(1)}x harga rumah`,
+      value: `${(data.totalPayments / data.loan.housePrice).toFixed(1)}x`,
+      detail: `Anda membayar ${(data.totalPayments / data.loan.housePrice).toFixed(1)}x harga rumah`,
       color: 'text-amber-600',
     },
     {
@@ -207,10 +201,8 @@ function KeyInsightCards({ data }: { data: ReturnType<typeof computeInsights> })
   );
 }
 
-const loan_amount = MOCK_LOAN.loanAmount;
-
-function RecommendationPanel({ data }: { data: ReturnType<typeof computeInsights> }) {
-  const isAfterMinTenor = data.status.currentMonth >= MOCK_LOAN.minTenorMonths;
+function RecommendationPanel({ data }: { data: InsightData }) {
+  const isAfterMinTenor = data.status.currentMonth >= data.loan.minTenorMonths;
 
   return (
     <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 border border-emerald-200 rounded-xl p-6">
@@ -227,7 +219,7 @@ function RecommendationPanel({ data }: { data: ReturnType<typeof computeInsights
                 <div>
                   <p className="text-sm font-semibold text-emerald-900">Tunggu hingga penalti turun</p>
                   <p className="text-xs text-emerald-700">
-                    Penalti {MOCK_LOAN.penaltyBeforeMinTenor}% → {MOCK_LOAN.penaltyAfterMinTenor}% setelah bulan ke-{MOCK_LOAN.minTenorMonths}
+                    Penalti {data.loan.penaltyBeforeMinTenor}% → {data.loan.penaltyAfterMinTenor}% setelah bulan ke-{data.loan.minTenorMonths}
                   </p>
                 </div>
               </div>
@@ -246,7 +238,7 @@ function RecommendationPanel({ data }: { data: ReturnType<typeof computeInsights
               <div>
                 <p className="text-sm font-semibold text-emerald-900">Alternatif: bayar ekstra berkala</p>
                 <p className="text-xs text-emerald-700">
-                  Min 6x angsuran ({formatIDR(MOCK_LOAN.minPartialPrepayment * data.status.currentInstallment)}) per pelunasan sebagian
+                  Min 6x angsuran ({formatIDR(data.loan.minPartialPrepayment * data.status.currentInstallment)}) per pelunasan sebagian
                 </p>
               </div>
             </div>
@@ -347,14 +339,14 @@ function OpportunityCostTable({ rows, currentRate }: { rows: OpportunityCostRow[
   );
 }
 
-function AnalysisNote({ data }: { data: ReturnType<typeof computeInsights> }) {
+function AnalysisNote({ data, highestRate }: { data: InsightData; highestRate: number }) {
   return (
     <div className="bg-gray-50 rounded-xl p-4 text-xs text-gray-500">
       <p className="font-medium text-gray-700 mb-1">Catatan Analisa</p>
       <p>
-        Analisa ini berdasarkan data aktual KPR Anda: pokok {formatIDR(MOCK_LOAN.loanAmount)},
+        Analisa ini berdasarkan data aktual KPR Anda: pokok {formatIDR(data.loan.loanAmount)},
         bunga aktif {formatPct(data.currentRate)}, sisa {formatIDR(data.status.outstandingBalance)}.
-        Bunga KPR fase tertinggi ({formatPct(MOCK_PHASES[MOCK_PHASES.length - 1].rate)})
+        Bunga KPR fase tertinggi ({formatPct(highestRate)})
         lebih tinggi dari hampir semua instrumen investasi risiko rendah-menengah di Indonesia.
       </p>
       <p className="mt-2">
@@ -365,12 +357,37 @@ function AnalysisNote({ data }: { data: ReturnType<typeof computeInsights> }) {
   );
 }
 
+function LoadingState() {
+  return (
+    <div className="flex items-center justify-center h-64">
+      <Loader2 className="animate-spin text-primary" size={32} />
+      <span className="ml-3 text-gray-500">Memuat data insights...</span>
+    </div>
+  );
+}
+
 // ============================================================
 // Page Component
 // ============================================================
 
 function InsightsPage() {
-  const data = useMemo(() => computeInsights(), []);
+  const { data: cmsStatus, isLoading: statusLoading } = useKprStatus();
+  const { data: loanData, isLoading: loanLoading } = useKprLoan();
+  const { data: tiersData, isLoading: tiersLoading } = useRateTiers();
+  const { data: scheduleData, isLoading: scheduleLoading } = useSchedule();
+
+  const isLoading = statusLoading || loanLoading || tiersLoading || scheduleLoading;
+
+  if (isLoading) return <LoadingState />;
+  if (!cmsStatus || !loanData) return <div className="text-red-500">Gagal memuat data</div>;
+
+  const status = adaptCmsStatus(cmsStatus);
+  const loan = loanData as KprLoan;
+  const tiers = tiersData?.docs ?? [];
+  const phases = adaptRateTiersToPhases(tiers, loan.firstPayment);
+  const schedule = scheduleData?.docs ?? [];
+
+  const data = computeInsights(status, schedule, loan, phases);
 
   return (
     <div className="space-y-6">
@@ -394,7 +411,7 @@ function InsightsPage() {
       </div>
 
       <OpportunityCostTable rows={data.opportunityCost} currentRate={data.currentRate} />
-      <AnalysisNote data={data} />
+      <AnalysisNote data={data} highestRate={data.highestRate} />
     </div>
   );
 }

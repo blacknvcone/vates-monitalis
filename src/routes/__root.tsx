@@ -1,5 +1,8 @@
 import { createRootRoute, Outlet, Link, useMatchRoute, useLocation } from '@tanstack/react-router';
-import { LayoutDashboard, CalendarDays, Calculator, Lightbulb, Settings, Menu, X, LogOut, User } from 'lucide-react';
+import {
+  LayoutDashboard, CalendarDays, Calculator, Lightbulb, Settings, Menu, X, LogOut, User,
+  Banknote, History, Target, CalendarRange, GitCompareArrows, Building2, Download, TrendingDown, Bell,
+} from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useAuth } from '@/lib/auth';
 
@@ -8,6 +11,15 @@ const NAV_ITEMS = [
   { to: '/schedule', label: 'Tabel Angsuran', icon: CalendarDays },
   { to: '/simulator', label: 'Simulator', icon: Calculator },
   { to: '/insights', label: 'Insights', icon: Lightbulb },
+  { to: '/extra-payments', label: 'Pembayaran Ekstra', icon: Banknote },
+  { to: '/payment-history', label: 'Riwayat Pembayaran', icon: History },
+  { to: '/goals', label: 'Target Pelunasan', icon: Target },
+  { to: '/cashflow', label: 'Arus Kas', icon: CalendarRange },
+  { to: '/scenario-compare', label: 'Perbandingan Skenario', icon: GitCompareArrows },
+  { to: '/refinance', label: 'Kalkulator Refinancing', icon: Building2 },
+  { to: '/inflation', label: 'Penyesuaian Inflasi', icon: TrendingDown },
+  { to: '/export', label: 'Export Laporan', icon: Download },
+  { to: '/notifications', label: 'Notifikasi', icon: Bell },
   { to: '/settings', label: 'Settings', icon: Settings },
 ] as const;
 
