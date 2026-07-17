@@ -105,3 +105,14 @@ body {
 /* Recharts */
 .dark .recharts-text { fill: var(--text-muted); }
 .dark .recharts-cartesian-grid line { stroke: #1e293b; }
+
+/* Tables */
+.dark table { color: var(--text); }
+.dark thead tr { background-color: rgba(30, 41, 59, 0.5); }
+.dark thead th { color: var(--text-muted); }
+.dark tbody tr:hover { background-color: rgba(30, 41, 59, 0.5); }
+.dark tbody tr { border-color: #334155; }
+
+/* Scrollbar */
+.dark ::-webkit-scrollbar { background: #0f172a; }
+.dark ::-webkit-scrollbar-thumb { background: #334155; }

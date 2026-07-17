@@ -537,23 +537,23 @@ function SchedulePage() {
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="bg-white dark:bg-surface-dark rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               {table.getHeaderGroups().map((headerGroup) => (
-                <tr key={headerGroup.id} className="bg-gray-50 border-b border-gray-200">
+                <tr key={headerGroup.id} className="bg-gray-50 dark:bg-gray-800/50 border-b border-gray-200 dark:border-gray-700">
                   {headerGroup.headers.map((header) => (
                     <th
                       key={header.id}
-                      className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider whitespace-nowrap"
+                      className="px-3 py-3 text-left text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap"
                       style={{ width: header.getSize() }}
                     >
                       {header.isPlaceholder ? null : (
                         <button
                           className={cn(
                             'inline-flex items-center gap-1',
-                            header.column.getCanSort() && 'cursor-pointer select-none hover:text-gray-900',
+                            header.column.getCanSort() && 'cursor-pointer select-none hover:text-gray-900 dark:hover:text-white',
                           )}
                           onClick={header.column.getToggleSortingHandler()}
                         >
@@ -579,11 +579,11 @@ function SchedulePage() {
                   <tr
                     key={row.id}
                     className={cn(
-                      'border-b border-gray-100 transition-colors',
-                      isCurrent && 'bg-blue-50 border-l-2 border-l-blue-500',
+                      'border-b border-gray-100 dark:border-gray-700 transition-colors',
+                      isCurrent && 'bg-blue-50 dark:bg-blue-900/20 border-l-2 border-l-blue-500',
                       isBoundary && !isCurrent && 'border-t-2 border-t-amber-300',
                       isFuture && !isCurrent && 'opacity-70',
-                      !isCurrent && 'hover:bg-gray-50',
+                      !isCurrent && 'hover:bg-gray-50 dark:hover:bg-gray-800/50',
                     )}
                   >
                     {row.getVisibleCells().map((cell) => (
@@ -602,33 +602,33 @@ function SchedulePage() {
         </div>
 
         {/* Pagination */}
-        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-gray-200 bg-gray-50">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/30">
           <div className="flex items-center gap-2">
             <button
               onClick={() => table.setPageIndex(0)}
               disabled={!table.getCanPreviousPage()}
-              className="px-2 py-1 text-sm border border-gray-200 rounded bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+              className="px-2 py-1 text-sm border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
             >
               {'<<'}
             </button>
             <button
               onClick={() => table.previousPage()}
               disabled={!table.getCanPreviousPage()}
-              className="px-2 py-1 text-sm border border-gray-200 rounded bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+              className="px-2 py-1 text-sm border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
             >
               {'<'}
             </button>
             <button
               onClick={() => table.nextPage()}
               disabled={!table.getCanNextPage()}
-              className="px-2 py-1 text-sm border border-gray-200 rounded bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+              className="px-2 py-1 text-sm border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
             >
               {'>'}
             </button>
             <button
               onClick={() => table.setPageIndex(table.getPageCount() - 1)}
               disabled={!table.getCanNextPage()}
-              className="px-2 py-1 text-sm border border-gray-200 rounded bg-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
+              className="px-2 py-1 text-sm border border-gray-200 dark:border-gray-600 rounded bg-white dark:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
             >
               {'>>'}
             </button>
