@@ -263,11 +263,11 @@ function AuthenticatedLayout({ children }: { children: ReactNode }) {
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <main className="flex-1 overflow-y-auto">
-        <div className="lg:hidden sticky top-0 z-30 bg-white border-b px-4 py-3 flex items-center gap-3">
-          <button onClick={() => setSidebarOpen(true)} className="p-1 hover:bg-gray-100 rounded">
-            <Menu size={20} />
+        <div className="lg:hidden sticky top-0 z-30 bg-white dark:bg-surface-dark border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center gap-3">
+          <button onClick={() => setSidebarOpen(true)} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">
+            <Menu size={20} className="text-gray-900 dark:text-white" />
           </button>
-          <h1 className="text-lg font-bold text-primary">Monetalis</h1>
+          <h1 className="text-lg font-bold text-primary dark:text-white">Monetalis</h1>
         </div>
 
         <div className="p-6 lg:p-8 max-w-7xl mx-auto">
@@ -289,7 +289,7 @@ function RootComponent() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-surface flex items-center justify-center">
         <div className="animate-spin w-8 h-8 border-4 border-primary border-t-transparent rounded-full" />
       </div>
     );
