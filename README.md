@@ -63,7 +63,7 @@ Personal finance dashboard untuk monitoring dan optimasi Kredit Pemilikan Rumah 
 | Styling | TailwindCSS 4 |
 | Backend | Payload CMS 3.x (shared, [revamp-portfolio](https://github.com/blacknvcone/revamp-portfolio)) |
 | Database | MongoDB Atlas |
-| Auth | Payload built-in JWT (MonetalisUsers collection) |
+| Auth | Logto SSO (OIDC) via `auth.danipras.dev` |
 | Email | Nodemailer via Google SMTP |
 | Deploy | Docker + K8s + Traefik |
 | CI/CD | GitHub Actions (tag `v*` → build → push GHCR → webhook restart) |
@@ -109,13 +109,15 @@ src/
 
 | Collection | Description |
 |-----------|-------------|
-| `monetalis-users` | Users with auth (linked to 1 loan, role: admin/viewer) |
 | `kpr-loans` | Loan metadata (tab layout: Pinjaman, Dokumen, Aturan Penalti) |
 | `kpr-rate-tiers` | Stepped fixed interest rate tiers |
 | `kpr-schedule` | 240-month amortization schedule with payment tracking |
 | `kpr-extra-payments` | Extra payment log |
 | `kpr-reminders` | Email reminder config (day, types, last sent) |
 | `kpr-simulations` | Saved payment simulations |
+
+> **Note:** User management is now handled by Logto SSO. Users are no longer stored
+> in CMS. See [Logto SSO](https://github.com/blacknvcone/logto-sso) for user management.
 
 ### Custom Endpoints
 
@@ -147,9 +149,17 @@ pnpm build                    # Production build
 ```env
 # .env.local (local development)
 VITE_CMS_URL=http://localhost:3001
+VITE_LOGTO_ENDPOINT=https://auth.danipras.dev
+VITE_LOGTO_APP_ID=xvw36t0vruqvbid8215dq
+VITE_LOGTO_REDIRECT_URI=http://localhost:3000/callback
+VITE_LOGTO_POST_LOGOUT_URI=http://localhost:3000
 
-# .env (production)
+# .env (production — set in K8s deployment)
 VITE_CMS_URL=https://cms.danipras.dev
+VITE_LOGTO_ENDPOINT=https://auth.danipras.dev
+VITE_LOGTO_APP_ID=xvw36t0vruqvbid8215dq
+VITE_LOGTO_REDIRECT_URI=https://monetalis.danipras.dev/callback
+VITE_LOGTO_POST_LOGOUT_URI=https://monetalis.danipras.dev
 ```
 
 ### Local CMS Setup
@@ -191,6 +201,21 @@ kubectl apply -f monetalis/monetalis-web-deployment.yaml
 kubectl apply -f monetalis/monetalis-web-service.yaml
 kubectl apply -f monetalis/monetalis-web-ingressroute.yaml
 ```
+
+---
+
+## Auth Flow (Logto SSO)
+
+```
+User → Login page → Redirect to Logto (auth.danipras.dev)
+     → OIDC PKCE flow → Get ID token
+     → POST /api/auth/logto (CMS validates token, reads roles + custom_data)
+     → Returns Payload JWT + user info (role, loanId from Logto)
+     → SPA stores JWT for API calls
+```
+
+**Logto roles:** `monetalis-admin` (full access), `monetalis-viewer` (read-only)
+**Custom data per user:** `{ monetalis: { loanId, isActive } }`
 
 ---
 
