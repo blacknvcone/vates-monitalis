@@ -9,91 +9,27 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SimulatorRouteImport } from './routes/simulator'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as ScheduleRouteImport } from './routes/schedule'
-import { Route as ScenarioCompareRouteImport } from './routes/scenario-compare'
-import { Route as RefinanceRouteImport } from './routes/refinance'
-import { Route as PaymentHistoryRouteImport } from './routes/payment-history'
-import { Route as NotificationsRouteImport } from './routes/notifications'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as InsightsRouteImport } from './routes/insights'
-import { Route as InflationRouteImport } from './routes/inflation'
-import { Route as GoalsRouteImport } from './routes/goals'
-import { Route as ExtraPaymentsRouteImport } from './routes/extra-payments'
-import { Route as ExportRouteImport } from './routes/export'
-import { Route as CashflowRouteImport } from './routes/cashflow'
-import { Route as BudgetRouteImport } from './routes/budget'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as BudgetRouteImport } from './routes/budget'
+import { Route as CallbackRouteImport } from './routes/callback'
+import { Route as CashflowRouteImport } from './routes/cashflow'
+import { Route as ExportRouteImport } from './routes/export'
+import { Route as ExtraPaymentsRouteImport } from './routes/extra-payments'
+import { Route as GoalsRouteImport } from './routes/goals'
+import { Route as InflationRouteImport } from './routes/inflation'
+import { Route as InsightsRouteImport } from './routes/insights'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as NotificationsRouteImport } from './routes/notifications'
+import { Route as PaymentHistoryRouteImport } from './routes/payment-history'
+import { Route as RefinanceRouteImport } from './routes/refinance'
+import { Route as ScenarioCompareRouteImport } from './routes/scenario-compare'
+import { Route as ScheduleRouteImport } from './routes/schedule'
+import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SimulatorRouteImport } from './routes/simulator'
 
-const SimulatorRoute = SimulatorRouteImport.update({
-  id: '/simulator',
-  path: '/simulator',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ScheduleRoute = ScheduleRouteImport.update({
-  id: '/schedule',
-  path: '/schedule',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ScenarioCompareRoute = ScenarioCompareRouteImport.update({
-  id: '/scenario-compare',
-  path: '/scenario-compare',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const RefinanceRoute = RefinanceRouteImport.update({
-  id: '/refinance',
-  path: '/refinance',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PaymentHistoryRoute = PaymentHistoryRouteImport.update({
-  id: '/payment-history',
-  path: '/payment-history',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const NotificationsRoute = NotificationsRouteImport.update({
-  id: '/notifications',
-  path: '/notifications',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const InsightsRoute = InsightsRouteImport.update({
-  id: '/insights',
-  path: '/insights',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const InflationRoute = InflationRouteImport.update({
-  id: '/inflation',
-  path: '/inflation',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const GoalsRoute = GoalsRouteImport.update({
-  id: '/goals',
-  path: '/goals',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ExtraPaymentsRoute = ExtraPaymentsRouteImport.update({
-  id: '/extra-payments',
-  path: '/extra-payments',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ExportRoute = ExportRouteImport.update({
-  id: '/export',
-  path: '/export',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const CashflowRoute = CashflowRouteImport.update({
-  id: '/cashflow',
-  path: '/cashflow',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BudgetRoute = BudgetRouteImport.update({
@@ -101,15 +37,86 @@ const BudgetRoute = BudgetRouteImport.update({
   path: '/budget',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const CallbackRoute = CallbackRouteImport.update({
+  id: '/callback',
+  path: '/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CashflowRoute = CashflowRouteImport.update({
+  id: '/cashflow',
+  path: '/cashflow',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ExportRoute = ExportRouteImport.update({
+  id: '/export',
+  path: '/export',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ExtraPaymentsRoute = ExtraPaymentsRouteImport.update({
+  id: '/extra-payments',
+  path: '/extra-payments',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GoalsRoute = GoalsRouteImport.update({
+  id: '/goals',
+  path: '/goals',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InflationRoute = InflationRouteImport.update({
+  id: '/inflation',
+  path: '/inflation',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InsightsRoute = InsightsRouteImport.update({
+  id: '/insights',
+  path: '/insights',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NotificationsRoute = NotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PaymentHistoryRoute = PaymentHistoryRouteImport.update({
+  id: '/payment-history',
+  path: '/payment-history',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RefinanceRoute = RefinanceRouteImport.update({
+  id: '/refinance',
+  path: '/refinance',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ScenarioCompareRoute = ScenarioCompareRouteImport.update({
+  id: '/scenario-compare',
+  path: '/scenario-compare',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ScheduleRoute = ScheduleRouteImport.update({
+  id: '/schedule',
+  path: '/schedule',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SimulatorRoute = SimulatorRouteImport.update({
+  id: '/simulator',
+  path: '/simulator',
   getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/budget': typeof BudgetRoute
+  '/callback': typeof CallbackRoute
   '/cashflow': typeof CashflowRoute
   '/export': typeof ExportRoute
   '/extra-payments': typeof ExtraPaymentsRoute
@@ -128,6 +135,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/budget': typeof BudgetRoute
+  '/callback': typeof CallbackRoute
   '/cashflow': typeof CashflowRoute
   '/export': typeof ExportRoute
   '/extra-payments': typeof ExtraPaymentsRoute
@@ -147,6 +155,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/budget': typeof BudgetRoute
+  '/callback': typeof CallbackRoute
   '/cashflow': typeof CashflowRoute
   '/export': typeof ExportRoute
   '/extra-payments': typeof ExtraPaymentsRoute
@@ -167,6 +176,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/budget'
+    | '/callback'
     | '/cashflow'
     | '/export'
     | '/extra-payments'
@@ -185,6 +195,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/budget'
+    | '/callback'
     | '/cashflow'
     | '/export'
     | '/extra-payments'
@@ -203,6 +214,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/budget'
+    | '/callback'
     | '/cashflow'
     | '/export'
     | '/extra-payments'
@@ -222,6 +234,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BudgetRoute: typeof BudgetRoute
+  CallbackRoute: typeof CallbackRoute
   CashflowRoute: typeof CashflowRoute
   ExportRoute: typeof ExportRoute
   ExtraPaymentsRoute: typeof ExtraPaymentsRoute
@@ -240,102 +253,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/simulator': {
-      id: '/simulator'
-      path: '/simulator'
-      fullPath: '/simulator'
-      preLoaderRoute: typeof SimulatorRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/schedule': {
-      id: '/schedule'
-      path: '/schedule'
-      fullPath: '/schedule'
-      preLoaderRoute: typeof ScheduleRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/scenario-compare': {
-      id: '/scenario-compare'
-      path: '/scenario-compare'
-      fullPath: '/scenario-compare'
-      preLoaderRoute: typeof ScenarioCompareRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/refinance': {
-      id: '/refinance'
-      path: '/refinance'
-      fullPath: '/refinance'
-      preLoaderRoute: typeof RefinanceRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/payment-history': {
-      id: '/payment-history'
-      path: '/payment-history'
-      fullPath: '/payment-history'
-      preLoaderRoute: typeof PaymentHistoryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/notifications': {
-      id: '/notifications'
-      path: '/notifications'
-      fullPath: '/notifications'
-      preLoaderRoute: typeof NotificationsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/insights': {
-      id: '/insights'
-      path: '/insights'
-      fullPath: '/insights'
-      preLoaderRoute: typeof InsightsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/inflation': {
-      id: '/inflation'
-      path: '/inflation'
-      fullPath: '/inflation'
-      preLoaderRoute: typeof InflationRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/goals': {
-      id: '/goals'
-      path: '/goals'
-      fullPath: '/goals'
-      preLoaderRoute: typeof GoalsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/extra-payments': {
-      id: '/extra-payments'
-      path: '/extra-payments'
-      fullPath: '/extra-payments'
-      preLoaderRoute: typeof ExtraPaymentsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/export': {
-      id: '/export'
-      path: '/export'
-      fullPath: '/export'
-      preLoaderRoute: typeof ExportRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/cashflow': {
-      id: '/cashflow'
-      path: '/cashflow'
-      fullPath: '/cashflow'
-      preLoaderRoute: typeof CashflowRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/budget': {
@@ -345,11 +267,109 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BudgetRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/callback': {
+      id: '/callback'
+      path: '/callback'
+      fullPath: '/callback'
+      preLoaderRoute: typeof CallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cashflow': {
+      id: '/cashflow'
+      path: '/cashflow'
+      fullPath: '/cashflow'
+      preLoaderRoute: typeof CashflowRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/export': {
+      id: '/export'
+      path: '/export'
+      fullPath: '/export'
+      preLoaderRoute: typeof ExportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/extra-payments': {
+      id: '/extra-payments'
+      path: '/extra-payments'
+      fullPath: '/extra-payments'
+      preLoaderRoute: typeof ExtraPaymentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/goals': {
+      id: '/goals'
+      path: '/goals'
+      fullPath: '/goals'
+      preLoaderRoute: typeof GoalsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inflation': {
+      id: '/inflation'
+      path: '/inflation'
+      fullPath: '/inflation'
+      preLoaderRoute: typeof InflationRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/insights': {
+      id: '/insights'
+      path: '/insights'
+      fullPath: '/insights'
+      preLoaderRoute: typeof InsightsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/notifications': {
+      id: '/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof NotificationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/payment-history': {
+      id: '/payment-history'
+      path: '/payment-history'
+      fullPath: '/payment-history'
+      preLoaderRoute: typeof PaymentHistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/refinance': {
+      id: '/refinance'
+      path: '/refinance'
+      fullPath: '/refinance'
+      preLoaderRoute: typeof RefinanceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/scenario-compare': {
+      id: '/scenario-compare'
+      path: '/scenario-compare'
+      fullPath: '/scenario-compare'
+      preLoaderRoute: typeof ScenarioCompareRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/schedule': {
+      id: '/schedule'
+      path: '/schedule'
+      fullPath: '/schedule'
+      preLoaderRoute: typeof ScheduleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/simulator': {
+      id: '/simulator'
+      path: '/simulator'
+      fullPath: '/simulator'
+      preLoaderRoute: typeof SimulatorRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -358,6 +378,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BudgetRoute: BudgetRoute,
+  CallbackRoute: CallbackRoute,
   CashflowRoute: CashflowRoute,
   ExportRoute: ExportRoute,
   ExtraPaymentsRoute: ExtraPaymentsRoute,

@@ -282,8 +282,10 @@ function RootComponent() {
   const { isAuthenticated, isLoading } = useAuth();
   const location = useLocation();
   const isLoginPage = location.pathname === '/login';
+  const isCallbackPage = location.pathname === '/callback';
 
-  if (isLoginPage) {
+  // Skip auth guard for login and OIDC callback routes
+  if (isLoginPage || isCallbackPage) {
     return <Outlet />;
   }
 

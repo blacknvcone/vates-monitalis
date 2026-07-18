@@ -12,6 +12,7 @@
     "prepare": "husky"
   },
   "dependencies": {
+    "@logto/react": "^4.0.14",
     "@tanstack/react-query": "^5.62.0",
     "@tanstack/react-router": "^1.95.0",
     "@tanstack/react-table": "^8.20.0",

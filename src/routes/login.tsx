@@ -1,15 +1,19 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useState, type FormEvent } from 'react';
 import { useAuth } from '@/lib/auth';
-import { Lock, Mail, AlertCircle, Loader2 } from 'lucide-react';
+import { Lock, Mail, AlertCircle, Loader2, Shield } from 'lucide-react';
+import { logtoConfig } from '@/lib/logto';
 
 function LoginPage() {
-  const { login, isAuthenticated } = useAuth();
+  const { login, logtoLogin, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPasswordLogin, setShowPasswordLogin] = useState(false);
+
+  const hasLogto = !!logtoConfig.appId;
 
   if (isAuthenticated) {
     navigate({ to: '/' });
@@ -45,7 +49,9 @@ function LoginPage() {
         <div className="bg-white rounded-xl border border-gray-200 p-6 shadow-sm">
           <h2 className="text-lg font-semibold text-gray-900 mb-1">Masuk</h2>
           <p className="text-sm text-gray-500 mb-6">
-            Masukkan email dan password untuk mengakses dashboard.
+            {hasLogto
+              ? 'Gunakan akun SSO untuk mengakses dashboard.'
+              : 'Masukkan email dan password untuk mengakses dashboard.'}
           </p>
 
           {error && (
@@ -55,55 +61,88 @@ function LoginPage() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-              <div className="relative">
-                <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="email@example.com"
-                  required
-                  autoFocus
-                  className="w-full pl-10 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-              <div className="relative">
-                <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  required
-                  className="w-full pl-10 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
-                />
-              </div>
-            </div>
-
+          {/* SSO Button — primary */}
+          {hasLogto && (
             <button
-              type="submit"
-              disabled={isSubmitting || !email || !password}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary-light disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              onClick={logtoLogin}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white text-sm font-medium rounded-lg hover:bg-primary-light transition-colors mb-4"
             >
-              {isSubmitting ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  Memproses...
-                </>
-              ) : (
-                'Masuk'
-              )}
+              <Shield size={16} />
+              Masuk dengan SSO
             </button>
-          </form>
+          )}
+
+          {/* Divider */}
+          {hasLogto && (
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex-1 h-px bg-gray-200" />
+              <span className="text-xs text-gray-400">atau</span>
+              <div className="flex-1 h-px bg-gray-200" />
+            </div>
+          )}
+
+          {/* Password login — collapsible when SSO available */}
+          {(!hasLogto || showPasswordLogin) && (
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <div className="relative">
+                  <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="email@example.com"
+                    required
+                    autoFocus={!hasLogto}
+                    className="w-full pl-10 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                <div className="relative">
+                  <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="••••••••"
+                    required
+                    className="w-full pl-10 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSubmitting || !email || !password}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 size={16} className="animate-spin" />
+                    Memproses...
+                  </>
+                ) : (
+                  'Masuk dengan Password'
+                )}
+              </button>
+            </form>
+          )}
+
+          {/* Toggle password login */}
+          {hasLogto && !showPasswordLogin && (
+            <button
+              onClick={() => setShowPasswordLogin(true)}
+              className="w-full text-center text-xs text-gray-400 hover:text-gray-600 mt-2 transition-colors"
+            >
+              Masuk dengan password
+            </button>
+          )}
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-6">
