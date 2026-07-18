@@ -51,22 +51,6 @@ async function cmsFetch<T>(
   return res.json();
 }
 
-// ============================================================
-// Auth
-// ============================================================
-
-export async function login(email: string, password: string) {
-  const res = await cmsFetch<{ user: { id: string; email: string }; token: string }>(
-    '/api/monetalis-users/login',
-    {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    },
-  );
-  localStorage.setItem('monetalis_token', res.token);
-  return res;
-}
-
 export function logout() {
   localStorage.removeItem('monetalis_token');
 }
@@ -86,29 +70,6 @@ export function getLoanId(): string {
     // intentionally ignored — fallback to empty string
   }
   return '';
-}
-
-export async function fetchCurrentUser() {
-  try {
-    const token = localStorage.getItem('monetalis_token');
-    if (!token) return null;
-
-    // Decode JWT to get user ID
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    const userId = payload.id;
-    if (!userId) return null;
-
-    const res = await cmsFetch<any>(`/api/monetalis-users/${userId}?depth=1`);
-    return {
-      id: res.id,
-      email: res.email,
-      name: res.name,
-      role: res.role,
-      loan: typeof res.loan === 'object' ? res.loan?.id : res.loan,
-    };
-  } catch {
-    return null;
-  }
 }
 
 // ============================================================

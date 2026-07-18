@@ -14,7 +14,6 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
   logtoLogin: () => void;
   handleLogtoCallback: (code: string, state: string) => Promise<void>;
   logout: () => void;
@@ -64,22 +63,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(false);
   }, []);
 
-  // Password login (existing flow)
-  const login = useCallback(async (email: string, password: string) => {
-    const res = await api.login(email, password);
-    const userData = await api.fetchCurrentUser();
+  // Auto-redirect to Logto SSO on mount if no token and Logto is configured
+  useEffect(() => {
+    if (isLoading) return;
+    if (user) return;
+    if (!logtoConfig.appId) return;
 
-    const userObj: User = {
-      id: res.user.id,
-      email: res.user.email,
-      name: userData?.name || (res.user as any).name || res.user.email,
-      role: userData?.role || (res.user as any).role || 'viewer',
-      loanId: userData?.loan || (res.user as any).loan || '',
-    };
-
-    localStorage.setItem('monetalis_user', JSON.stringify(userObj));
-    setUser(userObj);
-  }, []);
+    // Not authenticated and Logto is configured — redirect to SSO
+    logtoLogin();
+  }, [isLoading, user]);
 
   // Logto SSO login — redirect to Logto
   const logtoLogin = useCallback(async () => {
@@ -194,7 +186,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         isLoading,
         isAuthenticated: !!user,
-        login,
         logtoLogin,
         handleLogtoCallback,
         logout,
